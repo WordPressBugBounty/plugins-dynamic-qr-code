@@ -1,0 +1,51 @@
+table.sqc {
+    border-collapse: collapse;
+}
+table.bordered, th.bordered, td.bordered {
+    border: 1px solid gray;
+}
+table.rounded4 {
+    border-collapse: separate;
+    border-radius: 4px;
+    -moz-border-radius: 4px;
+}
+th.righted, td.righted {
+    text-align: right;
+}
+th.centered, td.centered {
+    text-align: center;
+}
+th.middled, td.middled {
+    vertical-align: middle;
+}
+th.medium, td.medium {
+    text-align: center;
+    vertical-align: middle;
+}
+th.italiced, td.italiced {
+    font-style: italic;
+}
+table.pad2p th, table.pad2p td {
+    padding: 2px;
+}
+th.pad1, td.pad1 {
+    padding: 1em;
+}
+table.pad1 th, table.pad1 td {
+    padding: 1em;
+}
+
+td.note {
+    color: gray;
+    font-style: italic;
+    border-left: darkslategray dotted 1px;
+}
+
+td.note ul {
+    list-style: disc;
+    margin: 0;
+    padding-left: 1em;
+}
+td.note ul li {
+    margin: 0;
+}

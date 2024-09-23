@@ -1,0 +1,27 @@
+= 0.8.8 =
+Fixed a code line.
+
+= 0.8.7 =
+* Added links to the online manual.
+* QR-Code editing: added a limit for the total number of scans.
+* QR-Code editing: added a redirect URL for scans beyond the maximum limit.
+* Settings: Redirect URLs for inactive and expired keys are not mandatory any longer.
+* Settings: Added a common redirect URL for finished keys (scans reached the maximum limit).
+* Settings: Added a read-only field with the API root URL for MyFast APP.
+* Minor fixes and changes
+
+= 0.8.5 =
+* Configuration: added an option to allow the creation of QR-Codes with the same code
+* Added the option to enable a QR-Code only in a specific day of the week
+* Added the *priority* property to override the random choice when more QR-Codes are simultaneously valid
+
+= 0.8.2 =
+* QR-Code editing: blocked *copy to clipboard* javascript function if admin left code empty or record id is zero (new record not saved yet)
+* Scan Logs search: added header columns to generated CSV files
+* Fixed the *custom URL* option of combo box controls
+
+= 0.8.1 =
+Fixed the configuration of the maximum size of the generated QR code image
+
+= 0.8 =
+First release
