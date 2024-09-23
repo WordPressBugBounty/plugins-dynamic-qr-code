@@ -1,0 +1,1 @@
+# plugins-dynamic-qr-code
