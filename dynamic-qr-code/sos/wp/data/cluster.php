@@ -1,6 +1,6 @@
 <?php
 namespace SOSIDEE_DYNAMIC_QRCODE\SOS\WP\DATA;
-use \SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP;
+use SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
 /**
@@ -9,10 +9,10 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
  */
 class Cluster
 {
-    use SOS_WP\Property {
-        SOS_WP\Property::__set as __setProp;
+    use SOS_WP\TProperty {
+        SOS_WP\TProperty::__set as __setProp;
     }
-    use SOS_WP\Translation;
+    use SOS_WP\TTranslation;
 
     protected static $plugin = null;
 
@@ -111,7 +111,7 @@ class Cluster
     /**
      * Assignes an admin page to the data cluster (or, if you prefer, assignes a data cluster to an admin page)
      * 
-     * @param string | BE\Page $page : ID of the page or the page itself
+     * @param string | SOS_WP\BE\Page $page : ID of the page or the page itself
      * 
      */
     public function setPage( $page ) {

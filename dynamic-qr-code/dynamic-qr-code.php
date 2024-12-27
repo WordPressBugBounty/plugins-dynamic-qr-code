@@ -1,12 +1,17 @@
 <?php
 /*
 Plugin Name: Dynamic QR Code
-Version: 0.9.3
+Version: 1.0.0
 Description: Allows you to create DYNAMIC QR CODES: you can modify what happens when scanning your QR code without actually modifying (and reprinting) the QR code.
+Requires at least: 5.9
+Tested up to: 6.7
+Requires PHP: 8.0
 Author: SOSidee.com srl
 Author URI: https://sosidee.com
 Text Domain: dynamic-qr-code
 Domain Path: /languages
+Plugin URI: https://sosplugin.com/dynamic-qr-code/
+Contributors: sosidee
 */
 namespace SOSIDEE_DYNAMIC_QRCODE;
 ( defined( 'ABSPATH' ) and defined( 'WPINC' ) ) or die( 'you were not supposed to be here' );
@@ -14,7 +19,7 @@ defined('SOSIDEE_DYNAMIC_QRCODE') || define( 'SOSIDEE_DYNAMIC_QRCODE', true );
 
 use SOSIDEE_DYNAMIC_QRCODE\SOS\WP\DATA as DATA;
 
-require_once "loader.php";
+require_once "wp-loader.php";
 
 \SOSIDEE_CLASS_LOADER::instance()->add( __NAMESPACE__, __DIR__ );
 
@@ -25,13 +30,15 @@ require_once "loader.php";
 class SosPlugin extends SOS\WP\Plugin
 {
 
-    private static $helpUrl = 'https://redirect.soslink.net/dynamic-qr-code/help/';
+    use SRC\TAddon;
 
     //pages
     private $pageQrCodes;
     private $pageLogs;
+
     public $pageQrCode;
-    public $pageConfig;
+    public $pageConfigs;
+    private $pageStats;
 
     //database
     public $database;
@@ -41,13 +48,11 @@ class SosPlugin extends SOS\WP\Plugin
     public $formSearchQrCode;
     public $formEditQrCode;
     public $formSearchLog;
+    public $formStatLog;
 
-    //API
-    private $apiRedirect;
+    private $apiRedirect; //API
 
     private $mbHC; //metabox for hiding post/page content
-
-    public static $FLD_HID;
 
     protected function __construct() {
         parent::__construct();
@@ -56,10 +61,17 @@ class SosPlugin extends SOS\WP\Plugin
         $this->key = 'sos-dynamic-qr-code';
         $this->name = 'Dynamic QR Code';
 
-        self::$FLD_HID = SRC\Shortcode::TAG . '_' . SRC\Shortcode::AUTH;
+        SRC\FORM\Base::$FLD_HID = SRC\Shortcode::TAG . '_' . SRC\Shortcode::AUTH;
 
         //if necessary, enable localization
         //$this->internationalize( 'dynamic-qr-code' ); //Text Domain
+
+        self::$helpUrl = 'https://support.sosidee.com/{KEY}/';
+        $this->setHelp('dynamic-qr-code');
+
+        $this->checkAddon = true;
+        $this->addonClass = 'DQC';
+
     }
 
     protected function initialize() {
@@ -67,40 +79,42 @@ class SosPlugin extends SOS\WP\Plugin
 
         // settings
         $section = $this->addSection('config', 'Settings');
-        //$section->validate = array($this, 'validateConfig'); //moved to form/config //function to be called on configuration data saving
-        $this->config = new SRC\FORM\Config( $section );
+        $this->config = new SRC\FORM\Configs( $section );
 
         // database: custom tables for the plugin
         $this->database = new SRC\Database();
 
-        $this->apiRedirect = $this->addApiAny('dynamic-qr-code', [$this, 'apiRedirectByCode'], 0 );
+        $this->apiRedirect = $this->addApiAny('dynamic-qr-code', [ $this, 'apiRedirectByCode' ], 0 );
         $this->apiRedirect->nonceDisabled = true;
 
-        $this->mbHC = $this->addMetaBox( 'post-content', $this->name );
-        $this->mbHC->addField( 'qid', 0 );
-        $this->mbHC->addField( 'form', false, true );
-        $this->mbHC->html = [$this, 'htmlMetabox'];
-        $this->mbHC->callback = [$this, 'saveMetabox'];
+        $mb = $this->addMetaBox( 'post-content', $this->name );
+        $this->mbHC = new SRC\Metabox($mb);
 
+        //if ( $this->hasAnyAddon() ) {
+        //    $this->name .= ' PRO';
+        //}
     }
 
     protected function initializeBackend() {
 
         $this->pageQrCodes = $this->addPage('qrcodes' );
         $this->pageQrCode = $this->addPage('qrcode' );
+        $this->pageQrCode->menuHidden = true;
         $this->pageLogs = $this->addPage('logs' );
-        $this->pageConfig = $this->addPage('config' );
+        $this->pageConfigs = $this->addPage('configs' );
+        $this->pageStats = $this->addPage('stats' );
 
         //assign data cluster to page
-        $this->config->setPage( $this->pageConfig );
+        $this->config->setPage( $this->pageConfigs );
 
         //menu
         $this->menu->icon = '-screenoptions';
 
         $this->menu->add( $this->pageQrCodes, 'QR-Codes' );
-        $this->menu->addHidden( $this->pageQrCode );
+        $this->menu->add( $this->pageQrCode );
         $this->menu->add( $this->pageLogs, 'Scan logs' );
-        $this->menu->add( $this->pageConfig, 'Settings' );
+        $this->menu->add( $this->pageStats, 'Scan stats' );
+        $this->menu->add( $this->pageConfigs, 'Settings' );
 
         $this->formSearchQrCode = new SRC\FORM\QrCodeSearch();
         $this->formSearchQrCode->addToPage( $this->pageQrCodes );
@@ -111,12 +125,15 @@ class SosPlugin extends SOS\WP\Plugin
         $this->formSearchLog = new SRC\FORM\logSearch();
         $this->formSearchLog->addToPage( $this->pageLogs );
 
+        $this->formStatLog = new SRC\FORM\logStat();
+        $this->formStatLog->addToPage( $this->pageStats );
+
         $this->qsArgs[] = SRC\FORM\QrCodeEdit::QS_ID;
 
         $this->addScript('admin')->addToPage( $this->pageQrCodes, $this->pageQrCode );
         $this->addScript('qrcode')->addToPage( $this->pageQrCode );
-        $this->addScript('config')->addToPage( $this->pageConfig );
-        $this->addStyle('admin')->addToPage( $this->pageQrCodes, $this->pageQrCode, $this->pageLogs );
+        $this->addScript('config')->addToPage( $this->pageConfigs );
+        $this->addStyle('admin')->addToPage( $this->pageQrCodes, $this->pageQrCode, $this->pageLogs, $this->pageStats );
         $this->addGoogleIcons();
         $this->addGoogleIconsToEditor();
 
@@ -124,15 +141,19 @@ class SosPlugin extends SOS\WP\Plugin
 
         add_action('current_screen', [$this, 'checkConfig']);
 
+        //TEST
+        //$dw = new SOS\WP\DashboardWidget('custom_help_widget', 'Pippo');
+        //$dw->callback = [$this, 'xxx'];
     }
 
-    public function loadQrCodeList( $caption = '' ) {
+    /*
+    public function loadQrCodeList( $caption = false, $include_cancelled = false ) {
         $ret = [];
-        if ( $caption != '' ) {
+        if ( $caption !== false ) {
             $ret[0] = $caption;
         }
 
-        $results = $this->database->loadQrCodeList();
+        $results = $this->database->loadQrCodeList( $include_cancelled );
 
         if ( is_array($results) ) {
             if ( count($results) > 0 ) {
@@ -145,41 +166,16 @@ class SosPlugin extends SOS\WP\Plugin
         }
         return $ret;
     }
+    */
 
-    public function htmlMetabox( $metabox, $post ) {
-
-        echo '<p>Prevent users to view the post/page if not accessed by scanning the image of this QR-Code: ';
-        echo $this->help('hide-2', 'float: right;');
-        echo '</p>';
-        $options = $this->loadQrCodeList('- select -');
-        $qid = $metabox->getField('qid');
-        echo '<p>';
-        echo $qid->getSelect( [ 'options' => $options ] );
-        echo '</p>';
-        $form = $metabox->getField('form');
-        echo '<p>';
-        echo $form->getCheckbox("allow reloading this post/page by submitting the form(s) contained in it");
-        echo '</p>';
-
-    }
-
-    public function saveMetabox( $metabox, $post, $update ) {
-        $res = $metabox->save( $post );
-        if ( $res === false ) {
-            $metabox->err("{$this->name}: cannot save the data.");
-        }
-    }
-
-    private function setJsCookieEraser() {
-        $cookie = SRC\OTKey::COOKIENAME;
-        $js = "document.cookie = '{$cookie} =; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';";
+    public function addDeleteCookieScript( $js ) {
         $this->addInlineScript( $js, 'cookie-delete' );
     }
 
-    private function getJsRedirect( $url ) {
+    public function getJsRedirect( $url ) {
         $ret = '<p style="font-style: italic;">';
-        $ret .= SOS\WP\DATA\FormTag::get( 'img', [
-            'alt' => 'waiting...'
+        $ret .= DATA\FormTag::get( 'img', [
+             'alt' => 'waiting...'
             ,'src' => $this->getLoaderSrc(24)
             ,'width' => '12px'
         ]);
@@ -189,150 +185,36 @@ class SosPlugin extends SOS\WP\Plugin
         $js = <<<EOD
             self.window.location.replace('{$url}');
 EOD;
-        $ret .= SOS\WP\DATA\FormTag::get( 'script', [
-            'type' => 'application/javascript'
+        $ret .= DATA\FormTag::get( 'script', [
+             'type' => 'application/javascript'
             ,'content' => $js
         ]);
 
         return $ret;
     }
 
-    private function isFormPosted() {
-        return isset($_SERVER['REQUEST_METHOD']) && strtoupper($_SERVER['REQUEST_METHOD']) == 'POST';
-    }
-
-    private function checkPostedForm( $value ) {
-        $ret = false;
-        if ( $this->isFormPosted() ) {
-            switch ( $this->config->formCheckMode->value ) {
-                case SRC\FORM\CheckMode::METHOD:
-                    $ret = true;
-                    break;
-                case SRC\FORM\CheckMode::REFERER:
-                    $ref = wp_get_raw_referer();
-                    $pid = url_to_postid($ref);
-                    if ( $pid == get_the_ID() ) {
-                        $ret = true;
-                    } else {
-                        sosidee_log("Hiding content: data posted from an invalid URL. Referer=$ref");
-                    }
-                    break;
-                case SRC\FORM\CheckMode::FIELD:
-                    if ( isset($_POST[self::$FLD_HID]) ) {
-                        $hid = trim( $_POST[self::$FLD_HID] );
-                        if ( strcasecmp( $hid, $value) == 0 ) {
-                            $ret = true;
-                        } else {
-                            sosidee_log("Hiding content: hidden field value is {$hid} while {$value} was expected.");
-                        }
-                    } else {
-                        sosidee_log("Hiding content: hidden field not found.");
-                    }
-                    break;
-            }
-        } else {
-            sosidee_log("Hiding content: invalid REQUEST_METHOD value.");
-        }
-        return $ret;
-    }
-
-    public function checkMetaboxPost( $content ) {
-        $this->mbHC->load();
-        $qid = $this->mbHC->getField('qid');
-
-        if ( $qid->value > 0 ) {
-            $show = false;
-            $id = $qid->value;
-            $form = $this->mbHC->getField('form');
-            $hasForm = boolval( $form->value );
-            $delete_cookie = true;
-
-            $isMobileBrowser = SRC\Mobile::is() && SRC\Mobile::isBrowser();
-            $this->config->load(); // load current configuration
-            $isDeviceEnabled = $isMobileBrowser || $this->config->anyDeviceEnabled->value; //it's a mobile browser OR any device
-
-            if ( $isDeviceEnabled ) {
-                //controllare il valore del cookie, e poi ...
-                $key = SRC\OTKey::getCookie();
-                if ( $key != '' ) {
-                    $otkey = $this->database->loadOTKey( $key, $id );
-                    if ( $otkey !== false && $otkey->otk_id > 0 ) {
-                        $tally = intval( $otkey->tally );
-                        $tally++;
-                        if ( $this->database->updateOTKey( $otkey->otk_id, $tally ) == false ) {
-                            sosidee_log("database.updateOTKey({$tally}) failed for key.id={$otkey->otk_id}");
-                        }
-                        if ( $tally == 1 ) {
-                            if ( $hasForm ) {
-                                $delete_cookie = false;
-                            }
-                            $show = true;
-                        } else {
-                            if ( $hasForm && $this->checkPostedForm( $id ) ) {
-                                $show = true;
-                                $delete_cookie = false;
-                            } else {
-                                sosidee_log("Hiding content: cookie already used.");
-                            }
-                        }
-                    } else {
-                        if ( $otkey !== false ) {
-                            sosidee_log("Hiding content: cookie key not found in the database.");
-                        } else {
-                            sosidee_log("Hiding content: a problem occurred while reading the cookie key in the database.");
-                        }
-                    }
-                } else {
-                    sosidee_log("Hiding content: cookie not found.");
-                }
-            } else {
-                sosidee_log("Hiding content: device not enabled.");
-            }
-
-            if ( $delete_cookie ) {
-                $this->setJsCookieEraser();
-            }
-
-            if ( $show ) {
-                $ret = $content;
-            } else {
-                $qrcode = $this->database->loadQrCode( $id );
-                if ( $qrcode !== false ) {
-                    $url = $qrcode->url_cypher;
-                } else {
-                    $url = '';
-                    sosidee_log("database.loadQrCode({$qid->value}) returned false.");
-                }
-                if ( $url == '') {
-                    $url = $this->config->urlError->value;
-                }
-                $ret = $this->getJsRedirect( $url );
-            }
-
-        } else {
-            $ret = $content;
-        }
-
-        return $ret;
-    }
-
     protected function initializeFrontend() {
-        add_filter( 'the_content', [ $this, 'checkMetaboxPost' ] );
+        //add_filter( 'the_content', [ $this, 'checkMetaboxPost' ] );
+        add_filter( 'the_content', [ $this->mbHC, 'checkPost' ] );
         $this->addShortCode( SRC\Shortcode::TAG, array($this, 'dynqrcode_handle_shortcode') );
     }
 
     public function checkConfig() {
+        if ( !function_exists('ImageCreate') ) {
+            $msg = "<span class=\"dashicons dashicons-admin-generic\"></span> GD library (PHP) not found: please contact your server administrator.";
+            self::msgErr( $msg );
+        }
 
         if ( $this->pageQrCodes->isCurrent() || $this->pageQrCode->isCurrent() ) {
             if ( !$this->config->check() ) {
-                $msg = "<span class=\"dashicons dashicons-admin-generic\"></span> Configuration is not valid: please check <a href=\"{$this->pageConfig->url}\">{$this->pageConfig->title}</a>";
+                $msg = "<span class=\"dashicons dashicons-admin-generic\"></span> Configuration is not valid: please check <a href=\"{$this->pageConfigs->url}\">{$this->pageConfigs->title}</a>";
                 $this::msgErr($msg);
             }
         } else if ( $this->pageLogs->isCurrent() ) {
             if ( !$this->formSearchLog->_posted ) {
                 $this->config->logDisabled->load();
                 if ( $this->config->logDisabled->value == true ) {
-                    $msg = "<span class=\"dashicons dashicons-admin-generic\"></span> Logs are currently disabled: please check <a href=\"{$this->pageConfig->url}\">{$this->pageConfig->title}</a>";
+                    $msg = "<span class=\"dashicons dashicons-admin-generic\"></span> Logs are currently disabled: please check <a href=\"{$this->pageConfigs->url}\">{$this->pageConfigs->title}</a>";
                     self::msgWarn( $msg );
                 }
             }
@@ -428,7 +310,7 @@ EOD;
 
         }
 
-        if ( $msg != '') {
+        if ( $msg != '' ) {
             $ret .= DATA\FormTag::get( 'pre', [
                 'content' => "{$this->name}: " . $msg
             ]);
@@ -465,7 +347,7 @@ EOD;
                 } else {
 
                     $this->config->load(); // load current configuration
-                    $isMobileBrowser = SRC\Mobile::is() && SRC\Mobile::isBrowser();
+                    $isMobileBrowser = SOS\Mobile::is() && SOS\Mobile::isBrowser();
                     $isDeviceEnabled = $isMobileBrowser || $this->config->anyDeviceEnabled->value; //it's a mobile browser OR any device
 
                     if ( $isDeviceEnabled ) {
@@ -485,7 +367,7 @@ EOD;
                                         $delete_cookie = false;
                                     }
                                 } else {
-                                    if ( $sc->hasForm && $this->checkPostedForm( $sc->id ) ) {
+                                    if ( $sc->hasForm && SRC\FORM\Base::checkPosted( $sc->id ) ) {
                                         $show = true;
                                         $delete_cookie = false;
                                     } else {
@@ -527,7 +409,7 @@ EOD;
         }
 
         if ( $delete_cookie ) {
-            $this->setJsCookieEraser();
+            SRC\OTKey::setJsCookieEraser();
         }
 
         return apply_filters( 'dynqrcode_handle_shortcode', $ret );
@@ -542,92 +424,12 @@ EOD;
             return $this->apiRedirect->getUrl(); //return 'https://this.is.just.a.demo/?rest_route=/rapi/dynamic-qr-code';
         }
     }
+
     public function getApiUrlLength( $code_length = 0 ) {
         if ( $code_length > 0 ) {
             $code_length = SRC\QrCode::getB64Len($code_length);
         }
         return strlen( $this->getApiUrl() ) + 4 + $code_length;
-    }
-
-    private function getCopy2CBIcon( $text, $title ) {
-        return '<a href="javascript:void(0);" onclick="jsSosCopy2Clipboard(\'' . esc_js($text) . '\')" title="' . esc_attr($title) . '" style="width: inherit;"><i class="material-icons" style="vertical-align: bottom; max-width: 1em; font-size: inherit; line-height: inherit;">content_copy</i></a>';
-    }
-
-    private function getCopy2CBAlert( $text, $title ) {
-        return '<a href="javascript:void(0);" onclick="alert(\'' . esc_js($text) . '\')" title="' . esc_attr($title) . '" style="width: inherit;"><i class="material-icons" style="vertical-align: bottom; max-width: 1em; font-size: inherit; line-height: inherit;">content_copy</i></a>';
-    }
-
-    public function getShortcode1Template( $id ) {
-        $ret = '[' . SRC\Shortcode::TAG . ' ' . SRC\Shortcode::AUTH . "={$id}]";
-        $ret .= 'content displayed to QR code scanners';
-        $ret .= '[/' . SRC\Shortcode::TAG . ']';
-        return $ret;
-    }
-
-    public function getShortcode2Template( $id, $standard ) {
-        $ret = '[' . SRC\Shortcode::TAG . ' ' . SRC\Shortcode::DISPLAY . "={$id}";
-        if ( $standard ) {
-            $ret .= ' ' . SRC\Shortcode::IMAGE . '="standard"';
-        }
-        $ret .= ']';
-        return $ret;
-    }
-
-    public function getHiddenFieldTemplate( $id ) {
-        return DATA\FormTag::get( 'input', [
-             'type' => 'hidden'
-            ,'name' => self::$FLD_HID
-            ,'value' => $id
-        ]);
-    }
-
-    public function getCopyApiUrl2CBIcon( $id, $code, $cypher = false ) {
-        $title = "copy QR-Code URL to clipboard";
-        if ( $id > 0 && $code != '' ) {
-            return $this->getCopy2CBIcon(  $this->getApiUrl($code, $cypher), $title );
-        } else {
-            if ( $id <= 0 ) {
-                return $this->getCopy2CBAlert( "Please save the QR-Code before copying the URL to clipboard.", $title );
-            } else {
-                if ( !$cypher ) {
-                    return $this->getCopy2CBAlert( "Attention: key is empty.", $title );
-                } else {
-                    return $this->getCopy2CBAlert( "Please generate the enhanced QR-Code image before copying the URL to clipboard.", $title );
-                }
-            }
-        }
-    }
-
-    public function getCopyShortcode2CBIcon( $id, $index = 1, $standard = false ) {
-        $title = "copy shortcode to clipboard";
-        if ( $id > 0 ) {
-            if ( $index == 1 ) {
-                $text = $this->getShortcode1Template( $id );
-            } else if ( $index == 2 ) {
-                $text = $this->getShortcode2Template( $id, $standard );
-            } else {
-                $text = 'a problem occurred';
-            }
-            return $this->getCopy2CBIcon( $text , $title );
-        } else {
-            return $this->getCopy2CBAlert( "Please save the QR-Code before copying the shortcode to clipboard.", $title );
-        }
-    }
-
-    public function getCopyHiddenField2CBIcon( $id ) {
-        $title = "copy hidden field to clipboard";
-
-        if ( $id > 0 ) {
-            $text = $this->getHiddenFieldTemplate( $id );
-            return $this->getCopy2CBIcon(  $text , $title );
-        } else {
-            return $this->getCopy2CBAlert( "Please generate the enhanced QR-Code image before copying the hidden field to clipboard.", $title );
-        }
-    }
-
-    public function getCopyApiRoot2CBIcon() {
-        $title = "copy URL for MyFast App to clipboard";
-        return $this->getCopy2CBIcon(  $this->getApiUrl(), $title );
     }
 
     public function apiRedirectByCode( \WP_REST_Request $request ) {
@@ -653,21 +455,43 @@ EOD;
         $this->config->load(); // load current configuration
         $anyDevice = $this->config->anyDeviceEnabled->value;
 
-        $isMobile = SRC\Mobile::is();
+        $isMobile = SOS\Mobile::is();
         $deviceEnabled = $isMobile || $anyDevice; //it's mobile OR any device
 
-        $isMobileBrowser = SRC\Mobile::isBrowser();
+        $isMobileBrowser = SOS\Mobile::isBrowser();
         if ( $isMFApp ) {
             $insertLog = !$this->config->logDisabled->value;
         } else {
             $insertLog = !$this->config->logDisabled->value && (!$isMobile || $isMobileBrowser);
         }
 
+        if ( $insertLog ) {
+            $log['dev_type'] = $isMobile ? SRC\DeviceType::MOBILE : SRC\DeviceType::NOT_MOBILE;
+            if ( $this->config->geoEnabled->value && $this->hasGeo() ) {
+                $key = $this->config->geoKey->value;
+                $geo = $this->addon::getGeo($key);
+                if ( is_array($geo) ) {
+                    $log['country'] = $geo['country'];
+                    $log['region'] = $geo['region'];
+                    $log['city'] = $geo['city'];
+                }
+            }
+            $langs = SRC\HTTP::getLanguages();
+            if ( is_array($langs) && count($langs) > 0 ) {
+                $log['lang'] = $langs[0];
+            }
+            if ( !$this->isPro ) {
+                $log['op_sys'] = SRC\OS::UNKNOWN;
+            } else {
+                $log['op_sys'] = $this->addon::getOS();
+            }
+        }
+
         $isCypher = false;
         $otkey = false;
 
         $method = $request->get_method();
-        if ( $method == 'GET' && $deviceEnabled ) {
+        if ( $method == 'GET' ) { // && $deviceEnabled
             $qs = $request->get_query_params();
             if ( array_key_exists('qr', $qs) ) {
                 $value = $qs['qr'];
@@ -721,12 +545,13 @@ EOD;
                 $qrcodes = [];
                 for ( $n=0; $n<count($items); $n++ ) {
                     $item = &$items[$n];
+                    $item->browser = $isMobileBrowser || !$isMobile; //dynamically added
                     if ( $item->only_mfa && !$isMFApp ) {
                         $status = SRC\QrCodeStatus::DISABLED;
                     } else {
                         $status = SRC\QrCode::getStatus( $item );
                     }
-                    $item->status = $status;
+                    $item->status = $status; //dynamically added
                     if ( $status == SRC\QrCodeStatus::ACTIVE ) {
                         if ( $item->priority ) {
                             $priority = true;
@@ -771,9 +596,13 @@ EOD;
                 $qrcode = $qrcodes[$index];
                 $log['qrcode_id'] = $qrcode->qrcode_id;
 
+                if ( !$deviceEnabled ) {
+                    $qrcode->status = SRC\QrCodeStatus::DISABLED;
+                }
+
                 $log['status'] = $qrcode->status;
 
-                if ( $isCypher || $this->config->anyQrHideEnabled->value ) {
+                if ( $deviceEnabled && ( $isCypher || $this->config->anyQrHideEnabled->value ) ) {
                     $otkey = SRC\OTKey::getNew();
                     $otdata = [
                          'qrcode_id' => intval( $qrcode->qrcode_id )
@@ -811,11 +640,11 @@ EOD;
                 ,'Database-Log' => $insertLog ? 'true' : 'false'
                 ,'Event-Id' => $qr_event_id
                 ,'User-Key' => $log['user_key'] ?? ''
-                ,'cookie' => $otkey !== false ? $otkey : 'false'
-            ], "API Redirect Parameters: " ); // note: it works if WP_DEBUG_LOG is true
+                ,'Cookie' => $otkey !== false ? $otkey : 'false'
+            ], "API Redirect Parameters: " ); // note: it works if WP_DEBUG_LOG constant is true
 
+        $url = $this->getRedirectUrl($url);
         if ( $url != '' ) {
-            $url = $this->getRedirectUrl( $url );
 
             if ( $insertLog ) {
                 if ( $this->database->saveLog( $log ) == false ) {
@@ -823,59 +652,117 @@ EOD;
                 }
             }
 
-            wp_redirect( $url, 302, 'Dynamic QR Code by SOSidee.com' );
+            wp_redirect( $url, 302, 'Dynamic QR Code plugin' );
 
         } else {
-            return new \WP_REST_Response( "Server response: a problem occurred. Please check the Smart QR Code plugin configuration.", 500);
+            sosidee_log('Plugin.apiRedirectByCode(): redirect URL is empty.');
+            return new \WP_REST_Response( "Server response: a problem occurred. Please check the Dynamic QR Code plugin configuration.", 500);
         }
         exit();
     }
 
     private function getRedirectUrl( $path ) {
-        $ret = $path;
-        if ( !sosidee_str_starts_with($ret, ['https://', 'http://', '//']) ) {
-            if ( !sosidee_str_starts_with($ret, '/') ) {
-                $ret = '/' . $ret;
+        $ret = '';
+        /** @noinspection HttpUrlsUsage */
+        if ( $path != '' && !sosidee_str_starts_with($path, ['https://', 'http://', '//']) ) {
+
+            if ( $this->hasSocial() ) {
+                if ( $this->hasFacebook() && $this->addon->facebook::is( $path ) ) {
+                    $url = $this->addon->facebook::getUrl($path);
+                    if ($url !== false) {
+                        $ret = $url;
+                    } else {
+                        sosidee_log("Addon\Facebook.getUrl() returned false for path: $path");
+                    }
+                } else if ( $this->hasInstagram() && $this->addon->instagram::is( $path ) ) {
+                    $url = $this->addon->instagram::getUrl($path);
+                    if ($url !== false) {
+                        $ret = $url;
+                    } else {
+                        sosidee_log("Addon\Instagram.getUrl() returned false for path: $path");
+                    }
+                } else if ( $this->hasLinkedIn() && $this->addon->linkedin::is( $path ) ) {
+                    $url = $this->addon->linkedin::getUrl($path);
+                    if ($url !== false) {
+                        $ret = $url;
+                    } else {
+                        sosidee_log("Addon\LinkedIn.getUrl() returned false for path: $path");
+                    }
+                } else if ( $this->hasWhatsApp() && $this->addon->whatsapp::is( $path ) ) {
+                    $url = $this->addon->whatsapp::getUrl($path);
+                    if ($url !== false) {
+                        $ret = $url;
+                    } else {
+                        sosidee_log("Addon\WhatsApp.getUrl() returned false for path: $path");
+                    }
+                } else if ( $this->hasYouTube() && $this->addon->youtube::is( $path ) ) {
+                    $url = $this->addon->youtube::getUrl($path);
+                    if ($url !== false) {
+                        $ret = $url;
+                    } else {
+                        sosidee_log("Addon\YouTube.getUrl() returned false for path: $path");
+                    }
+                } else {
+                    $ret = $path;
+                }
+            } else {
+                if ( !sosidee_str_starts_with($path, '/') ) {
+                    $path = '/' . $path;
+                }
+                $ret = get_site_url() . $path;
             }
-            $ret = get_site_url() . $ret;
+        } else {
+            $ret = $path;
         }
-        if ( $this->config->randQsEnabled->value ) {
-            $key = 'sos' . strval( random_int(6, 666) );
-            $value = base64_encode( bin2hex( random_bytes(12) ) );
-            $ret = add_query_arg( $key, $value, $ret );
+
+        if ( sosidee_str_starts_with($ret, ['https://', 'http://', '//']) ) {
+            $this->config->randQsEnabled->load();
+            if ( $this->config->randQsEnabled->value ) {
+                $key = 'sos' . strval( random_int(6, 666) );
+                $value = base64_encode( bin2hex( random_bytes(12) ) );
+                $ret = add_query_arg( $key, $value, $ret );
+            }
         }
         return $ret;
     }
 
     private function deleteFiles( $folder ) {
-        foreach ( glob($folder) as $file ) {
-            if ( is_file($file) ) {
-                unlink($file);
+        try {
+            foreach ( glob($folder) as $file ) {
+                if ( is_file($file) ) {
+                    unlink($file);
+                }
             }
-        }
-    }
-    public function onDeactivate() {
-        $tmp = $this->getTempFolder();
-        if ( is_array($tmp) && key_exists('basedir', $tmp) ) {
-            $this->deleteFiles( $tmp['basedir'] . '/*.png' );
-            $this->deleteFiles( $tmp['basedir'] . '/*.csv' );
+        } catch ( \Exception $ex ) {
+            sosidee_log( $ex->getMessage() );
         }
     }
 
-    public function help( $path = '', $style = 'margin: 0.5em; float: right;' ) {
-        $url = self::$helpUrl . $path;
-        $ret = '<a href="' . esc_url($url) . '" onclick="this.blur();" target="_blank" title="help"><i class="material-icons"';
+    public function onDeactivate() {
+        $tmp = $this->getTempFolder();
+        if ( $tmp !== false ) {
+            $this->deleteFiles( $tmp['path'] . '*.png' );
+            $this->deleteFiles( $tmp['path'] . '*.csv' );
+        }
+    }
+
+    public function pro( $style = null, $title = 'PRO version' ) {
+        $url = self::$helpUrl . 'pro-version';
+        $ret = '<a href="' . esc_url($url) . '" onclick="this.blur();" target="_blank" title="' . esc_attr($title) . '"><i class="dashicons-before dashicons-awards"';
+        $style = SOS\WP\HtmlTag::getStyle($style, 'color: #ff0000;');
         if ( !is_null($style) ) {
-            $color = 'color: #ffcc00;';
-            if ( $style != '' ) {
-                $style = $color . ' ' . $style;
-            } else {
-                $style = $color;
-            }
             $ret .= ' style="' . esc_attr($style) . '"';
         }
-        $ret .= '>help</i></a>';
+        $ret .= '></i></a>';
         return $ret;
+    }
+
+    public function htmlAdminPageTitle( $title ) {
+        echo '<h1>' . esc_html( $title );
+        if ( $this->hasAnyAddon() ) {
+            echo ' <sup><i class="dashicons-before dashicons-awards" style="font-size: 100%;" title="pro version"></i></sup>';
+        }
+        echo '</h1>';
     }
 
 }
@@ -886,6 +773,3 @@ EOD;
 **/
 $plugin = SosPlugin::instance(); //the class must be the one defined in this file
 $plugin->run();
-
-
-// this is the end (A B C)

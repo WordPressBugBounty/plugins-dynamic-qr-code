@@ -1,6 +1,6 @@
 <?php
 namespace SOSIDEE_DYNAMIC_QRCODE\SOS\WP\DATA;
-use \SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP;
+use SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
 /**
@@ -9,15 +9,15 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
  */
 class Field
 {
-    use SOS_WP\Property
+    use SOS_WP\TProperty
     {
-        SOS_WP\Property::__get as __getProp;
-        SOS_WP\Property::__set as __setProp;
+        SOS_WP\TProperty::__get as __getProp;
+        SOS_WP\TProperty::__set as __setProp;
     }
-    use SOS_WP\Translation;
-    use Encryption;
+    use SOS_WP\TTranslation;
+    use TEncryption;
 
-    private $loaded;
+    public $loaded;
     public $encrypted;
 
     public $name;
@@ -392,24 +392,31 @@ EOD;
      * $input is the field value
      */
     public function callback( $input ) {
+        $ret = $input;
         if ( !is_null($this->validate) ) {
             if ( !$this->handled ) {
                 $this->handled = true;
                 $result = call_user_func( $this->validate, $this->parent->key, array($this->key => $input) );
                 if ( is_array($result) ) {
-                    $ret = array_values($result)[0];
+                    if ( !empty($result) ) {
+                        $values = array_values($result);
+                        if ( isset($values[0]) ) {
+                            $ret = $values[0];
+                        } else {
+                            $ret = null;
+                        }
+                    } else {
+                        $ret = null;
+                    }
                 } else {
                     $ret = $result;
                 }
-                if ( !$this->encrypted ) {
-                    return $ret;
-                } else {
-                    return $this->encrypt( $ret );
+                if ( $this->encrypted && !is_null($ret) ) {
+                    $ret = $this->encrypt( $ret );
                 }
-            } else {
-                return $input;
             }
         }
+        return $ret;
     }
     
     public function translate() {

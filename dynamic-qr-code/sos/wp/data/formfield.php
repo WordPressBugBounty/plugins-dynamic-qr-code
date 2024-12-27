@@ -36,6 +36,7 @@ class FormField
             ,'height' => null
             ,'cols' => null
             ,'rows' => null
+            ,'size' => null
 
             ,'onclick' => null
             ,'onchange' => null
@@ -66,6 +67,7 @@ class FormField
                     ,'name' => $this->name
                     ,'value' => $this->value
                     ,'maxlength' => $keys['maxlength']
+                    ,'size' => $keys['size']
                     ,'onclick' => $keys['onclick']
                     ,'onchange' => $keys['onchange']
                     ,'style' => $keys['style']
@@ -77,7 +79,7 @@ class FormField
         } else if ( $this->type == FormFieldType::CHECK ) {
 
             $html = FormTag::get( 'input', [
-                'type' => 'checkbox'
+                 'type' => 'checkbox'
                 ,'id' => $this->id
                 ,'name' => $this->name
                 ,'checked' => boolval($this->value) // ? 'checked' : null
@@ -104,6 +106,32 @@ class FormField
                 ,'rows' => $keys['rows']
             ]);
 
+        } else if ( $this->type == FormFieldType::RADIO ) {
+
+            $options = $keys['options'];
+            if ( !is_null($options) ) {
+                $counter = 0;
+                foreach ( $options as $_value => $_text ) {
+                    if ( $ret != '' ) {
+                        $ret .= '<br>';
+                    }
+                    $item_id = "{$this->id}_$counter";
+                    $ret .= FormTag::get('input',[
+                         'type' => 'radio'
+                        ,'id' => $item_id
+                        ,'name' => $this->name
+                        ,'value' => $_value
+                        ,'checked' => strcasecmp($_value, $this->value) == 0
+                        ,'onclick' => $keys['onclick']
+                    ]);
+                    $ret .= FormTag::get( 'label', [
+                        'for' => $item_id
+                        ,'content' => $_text
+                    ]);
+                    $counter++;
+                }
+            }
+
         } else if ( $this->type == FormFieldType::SELECT ) {
 
             $html = '';
@@ -113,7 +141,7 @@ class FormField
                 foreach ( $options as $_value => $_text ) {
                     if ( !is_array($_text) ) {
                         $html .= FormTag::get('option',[
-                            'id' => "{$this->id}_$counter"
+                             'id' => "{$this->id}_$counter"
                             ,'name' => "{$this->name}_$counter"
                             ,'value' => $_value
                             ,'selected' => strcasecmp($_value, $this->value) == 0
@@ -124,7 +152,7 @@ class FormField
                         $gr_html = '';
                         foreach ($_text as $gr_value => $gr_text) {
                             $gr_html .= FormTag::get('option',[
-                                'id' => "{$this->id}_$counter"
+                                 'id' => "{$this->id}_$counter"
                                 ,'name' => "{$this->name}_$counter"
                                 ,'value' => $gr_value
                                 ,'selected' => strcasecmp($gr_value, $this->value) == 0
@@ -143,22 +171,25 @@ class FormField
             }
 
             $ret .= FormTag::get( 'select', [
-                'id' => $this->id
+                 'id' => $this->id
                 ,'name' => $this->name
                 ,'html' => $html
                 ,'onchange' => $keys['onchange']
+                ,'style' => $keys['style']
             ]);
 
         } else if ( $this->type == FormFieldType::NUMBER ) {
 
             $ret .= FormTag::get( 'input', [
-                    'type' => 'number'
+                     'type' => 'number'
                     ,'id' => $this->id
                     ,'name' => $this->name
                     ,'value' => $this->value
                     ,'min' => $keys['min']
                     ,'max' => $keys['max']
                     ,'step' => $keys['step']
+                    ,'style' => $keys['style']
+                    ,'class' => $keys['class']
                     ,'onclick' => $keys['onclick']
                     ,'onchange' => $keys['onchange']
                 ]
@@ -167,7 +198,7 @@ class FormField
         } else if ( $this->type == FormFieldType::COLOR ) {
 
             $ret .= FormTag::get( 'input', [
-                    'type' => 'color'
+                     'type' => 'color'
                     ,'id' => $this->id
                     ,'name' => $this->name
                     ,'value' => $this->value
@@ -180,7 +211,7 @@ class FormField
         } else if ( $this->type == FormFieldType::DATE ) {
 
             $ret .= FormTag::get( 'input', [
-                    'type' => 'date'
+                     'type' => 'date'
                     ,'id' => $this->id
                     ,'name' => $this->name
                     ,'value' => $this->value
@@ -196,7 +227,7 @@ class FormField
         } else if ( $this->type == FormFieldType::TIME ) {
 
             $ret .= FormTag::get( 'input', [
-                    'type' => 'time'
+                     'type' => 'time'
                     ,'id' => $this->id
                     ,'name' => $this->name
                     ,'value' => $this->value
@@ -212,7 +243,7 @@ class FormField
         } else if ( $this->type == FormFieldType::HIDDEN ) {
 
             $ret .= FormTag::get( 'input', [
-                    'type' => 'hidden'
+                     'type' => 'hidden'
                     ,'id' => $this->id
                     ,'name' => $this->name
                     ,'value' => $this->value
@@ -222,7 +253,7 @@ class FormField
         } else if ( $this->type == FormFieldType::FILE ) {
 
             $ret .= FormTag::get( 'input', [
-                    'type' => 'file'
+                     'type' => 'file'
                     ,'id' => $this->id
                     ,'name' => $this->name
                     ,'value' => $this->value
@@ -266,13 +297,61 @@ EOD;
                 ,'content' => $js
             ]);
 
+        } else if ( $this->type == FormFieldType::CHECKLIST ) {
+
+            $jsFunc = $this->getJsFuncName( $this->id );
+            $options = $keys['options'];
+            $count = 0;
+            foreach ($options as $value => $text) {
+                $id = "{$this->id}_{$count}";
+                if ( $ret != '') {
+                    $ret .= '<br>';
+                }
+                $ret .= FormTag::get( 'input', [
+                    'type' => 'checkbox'
+                    ,'id' => $id
+                    ,'name' => "{$this->name}_{$count}"
+                    ,'value' => $value
+                    ,'checked' => in_array($value, $this->value)
+                    ,'onclick' => "{$jsFunc}(this.value,this.checked);"
+                ]);
+                $ret .= FormTag::get( 'label', [
+                    'for' => $id
+                    ,'content' => $text
+                ]);
+                $count++;
+            }
+
+            $ret .= FormTag::get( 'input', [
+                'type' => 'hidden'
+                ,'id' => $this->id
+                ,'name' => $this->name
+                ,'value' => implode(';', $this->value)
+            ] );
+
+            $js = <<<EOD
+function {$jsFunc}( v, m ) {
+    let field = self.document.getElementById( '{$this->id}' );
+    let values = field.value.split( ';' ).filter(element => element);
+    if ( m && !values.includes(v) ) {
+        values.push(v);
+    } else if ( !m && values.includes(v) ) {
+        values = values.filter( function(e, i, a) { return e != v; }, v );
+    }
+    field.value = values.join( ';' );
+}
+EOD;
+            $ret .= FormTag::get( 'script', [
+                'type' => 'application/javascript'
+                ,'content' => $js
+            ]);
         }
 
         $description = trim( $this->description );
         if ( $description != '' ) {
             if ( $description == strip_tags($description) ) {
-                $html = HtmlTag::get( 'span', [ 'content' => $description, 'style' => 'font-style:italic;' ]);
-                $ret .= HtmlTag::get( 'p', [ 'html' => $html ]);
+                $html = FormTag::get( 'span', [ 'content' => $description, 'style' => 'font-style:italic;' ]);
+                $ret .= FormTag::get( 'p', [ 'html' => $html ]);
             } else {
                 $ret .= $description;
             }
@@ -298,7 +377,6 @@ EOD;
         }
         return $ret;
     }
-
 
     public function getValueAsDate( $end_of_day = false ) {
         if ( is_null( $this->value ) ) {

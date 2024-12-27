@@ -83,4 +83,21 @@ class Shortcode
         }
     }
 
+    public static function getTemplate1( $id ) {
+        $ret = '[' . self::TAG . ' ' . self::AUTH . "={$id}]";
+        $ret .= 'content displayed to QR code scanners';
+        $ret .= '[/' . self::TAG . ']';
+        return $ret;
+    }
+
+    public static function getTemplate2( $id, $standard ) {
+        $ret = '[' . self::TAG . ' ' . self::DISPLAY . "={$id}";
+        if ( $standard ) {
+            $ret .= ' ' . self::IMAGE . '="standard"';
+        }
+        $ret .= ']';
+        return $ret;
+    }
+
+
 }

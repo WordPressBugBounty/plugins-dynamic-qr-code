@@ -1,22 +1,26 @@
 <?php
 namespace SOSIDEE_DYNAMIC_QRCODE\SOS\WP\DATA;
-use \SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP_ROOT;
+use SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP_ROOT;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
 
 class WpDatabase
 {
-    use SOS_WP_ROOT\Property;
+    use SOS_WP_ROOT\TProperty;
+    use SOS_WP_ROOT\TBase;
 
     protected $prefix; //tables prefix
 
     protected $tables;
     public $lastErrors;
 
-    public function __construct( $prefix = null ) {
+    public function __construct( $prefix ) {
         global $wpdb;
-        if ( is_null($prefix) ) {
-            $prefix = 'sos_';
+        if ( !sosidee_str_starts_with($prefix, 'sos') && !sosidee_str_starts_with($prefix, '_sos') ) {
+            if ( !sosidee_str_starts_with($prefix, '_') ) {
+                $prefix = '_' . $prefix;
+            }
+            $prefix = 'sos' . $prefix;
         }
         if ( !sosidee_str_ends_with($wpdb->prefix, '_') && !sosidee_str_starts_with($prefix, '_') ) {
             $prefix = '_' . $prefix;
@@ -43,7 +47,7 @@ class WpDatabase
         $this->lastErrors = array();
         $count = count($this->tables);
         if ( $count > 0 ) {
-            require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
+            require_once( ABSPATH . str_replace('/', DIRECTORY_SEPARATOR, 'wp-admin/includes/upgrade.php') );
             if ( function_exists('dbDelta') ) {
                 $ret = true;
                 $charset = $wpdb->get_charset_collate();
@@ -76,20 +80,26 @@ class WpDatabase
         return $ret;
     }
 
-    public function create()
-    {
+    public function create() {
         add_action( 'plugins_loaded', function() {
-            $plugin = \SOSIDEE_DYNAMIC_QRCODE\SosPlugin::instance();
-            $key = $plugin->key . '_db-version';
+            $current = $this->plugin()->version;
+            if ( empty($current) ) {
+                $msg = "Plugin version is empty. Check if initialize() function contains the line 'parent::initialize();'";
+                if ( is_admin() ) {
+                    $this->plugin()::msgErr($msg, true);
+                }
+                sosidee_log("WpDatabase.create(): " . $msg);
+            }
+            $key = $this->plugin()->key . '_db-version';
             $installed = get_option($key, '0' );
-            $current = $plugin->version;
             if ( version_compare($installed, $current) < 0 ) {
                 if ( $this->createTables() ) {
                     update_option($key, $current );
+                    $this->plugin()->onDatabaseUpdate($installed, $current);
                 } else {
                     if ( is_admin() ) {
                         for ( $n=0; $n<count($this->lastErrors); $n++ ) {
-                            $plugin::msgErr( $this->lastErrors[$n] );
+                            $this->plugin()::msgErr( $this->lastErrors[$n], true );
                         }
                     }
                 }
@@ -123,9 +133,9 @@ class WpDatabase
     }
 
     /**
-     * @param string $formatted_sql sql query with formats (%d, %s, %f)
-     * @param array $values values associated with the formats --> look out: order is important!
-     * @return wpdb object|false
+     * @param \string $formatted_sql sql query with formats (%d, %s, %f)
+     * @param \array $values values associated with the formats --> look out: order is important!
+     * @return \wpdb object|false
      *
      * Example: obj->query( "INSERT INTO <table> (foo, bar, baz) VALUES (%s, %d, %f)", 'pippo', 123, 1.23 );
      */

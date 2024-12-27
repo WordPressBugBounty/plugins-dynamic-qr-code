@@ -47,6 +47,7 @@ class Group extends Cluster
                     if ( key_exists( $field->key, $this->values ) ) {
                         $value = $this->values[$field->key];
                         $field->setValue( $value );
+                        $field->loaded = true;
                     }
                 }
             }
@@ -58,11 +59,10 @@ class Group extends Cluster
      * $input is an associative array of elements field_key => field_value
      */
     public function callback( $inputs ) {
-        if ( !is_null($this->validate) ) {
-            if ( !$this->handled ) {
+        if ( !is_null($this->validate) && !$this->handled ) {
                 $results = call_user_func( $this->validate, $this->key, $inputs );
 
-                if ( $this->encrypted ) { //at least one field is encrypted
+                if ( $this->encrypted && is_array($results) ) { //at least one field is encrypted
                     foreach ( $results as $key => $value ) {
                         $field = $this->getField($key);
                         if ( !is_null($field) && $field->encrypted ) {
@@ -73,10 +73,8 @@ class Group extends Cluster
 
                 $this->handled = true; // so it won't be handled anymore
                 return $results;
-            } else {
-                return $inputs;
-            }
         }
+        return $inputs;
     }
 
     public function register() {

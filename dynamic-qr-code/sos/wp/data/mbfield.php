@@ -77,7 +77,7 @@ class MbField
         return $ret;
     }
 
-    public function getCheckbox( $label = '' ) {
+    public function getCheckbox( $data = [] ) {
         $ret = FormTag::get( 'input', [
             'type' => 'checkbox'
             ,'id' => $this->id
@@ -85,10 +85,10 @@ class MbField
             ,'checked' => boolval($this->value)
         ]);
 
-        if ( $label != '' ) {
+        if ( isset($data['label']) ) {
             $ret .= FormTag::get( 'label', [
-                'for' => $this->id
-                ,'content' => $label
+                 'for' => $this->id
+                ,'content' => $data['label']
             ]);
         }
 

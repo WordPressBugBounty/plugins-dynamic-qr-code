@@ -1,6 +1,6 @@
 <?php
 namespace SOSIDEE_DYNAMIC_QRCODE\SOS\WP;
-use \Elementor as NativeElementor;
+use Elementor as NativeElementor;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
 /**
@@ -11,12 +11,14 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
  */
 class Plugin
 {
-    use Property
-	{
-        Property::__get as __getProp;
-        Property::__set as __setProp;
-	}
-    use Message, Asset, Translation;
+    use TProperty
+    {
+        TProperty::__get as __getProp;
+        TProperty::__set as __setProp;
+    }
+    use TTransient, TMessage, TAsset, TTranslation, TAddon;
+
+    protected static $helpUrl = 'https://redirect.soslink.net/{KEY}/help/';
 
     private $localizedScriptHandles;
     private $inlineScriptHandles;
@@ -32,6 +34,7 @@ class Plugin
     protected $endpoints;
 
     protected $dashLinks;
+    protected $customUpdate;
 
     protected $file;
     protected $folder;
@@ -45,8 +48,11 @@ class Plugin
 
     public static $path = '';
     public static $url = '';
+
+    public $isPro;
     
     protected function __construct() {
+        $this->isPro = false;
 
         $this->_addProperty('key', 'sos-plugin');
 
@@ -70,8 +76,12 @@ class Plugin
         $this->qsArgs = array();
 
         $this->dashLinks = array();
+        $this->customUpdate = false;
 
-        self::$path = sosidee_dirname( plugin_dir_path( __FILE__ ) , 2);
+        $this->resetAddons();
+        $this->plmVersionMin = '1.0.0';
+
+        self::$path = sosidee_check_path_separator( sosidee_dirname( plugin_dir_path( __FILE__ ) , 2) );
         $this->folder = basename(self::$path);
         self::$url = sosidee_dirname( plugin_dir_url( __FILE__ ) , 2);
         Script::$PLUGIN_URL = self::$url;
@@ -84,12 +94,10 @@ class Plugin
         if ( !isset( self::$_instances[$calledClass] ) ) {
             self::$_instances[$calledClass] = new $calledClass();
         }
-
         return self::$_instances[$calledClass];
     }
 
     public function __get( $name ) {
-        $ret = null;
         switch($name) {
             default:
                 $ret = $this->__getProp($name);
@@ -112,7 +120,7 @@ class Plugin
         }
         return $ret;
     }
-    
+
     /**
      * Creates and adds a backend page located in the 'admin' folder
      * 
@@ -200,6 +208,13 @@ class Plugin
         return $style;
     }
 
+    protected function addStyleInline( $code ) {
+        $key = $this->key . '-' . time();
+        wp_register_style( $key, false );
+        wp_enqueue_style( $key );
+        wp_add_inline_style( $key, $code );
+    }
+
     protected function addScript( $file, $jquery_dependency = true, $in_body = false ) {
         $key = $this->key . '-' . count($this->scripts);
 
@@ -223,7 +238,7 @@ class Plugin
     protected function registerInlineScript( $code, $pages = [], $handle = '-reg-inline' ) {
         $action = !is_admin() ? 'wp_enqueue_scripts' : 'admin_enqueue_scripts';
         add_action( $action, function() use ( $code, $pages, $handle ) {
-            if (!is_array($pages)) {
+            if ( !is_array($pages) ) {
                 $pages = [$pages];
             }
             $add = count($pages) == 0;
@@ -237,8 +252,6 @@ class Plugin
             }
             if ( $add ) {
                 $this->addInlineScript( $code, $handle );
-            } else {
-                return false;
             }
         } );
     }
@@ -271,8 +284,6 @@ class Plugin
             if ( $add ) {
                 $data = $callback();
                 $this->addLocalizedScript( $name, $data, $handle );
-            } else {
-                return false;
             }
         } );
     }
@@ -293,7 +304,7 @@ class Plugin
     private function _addApiEndPoint( $method, $route, $callback, $version ) {
         $ret = new API\EndPoint($method, $route, $callback, $version );
         $this->endpoints[] = $ret;
-        $this->addApiAjax();
+        //$this->addApiAjax(); //va aggiunta solo se serve
         return $ret;
     }
     protected function addApiGet( $route, $callback = null, $version = 1 ) {
@@ -310,7 +321,6 @@ class Plugin
 
     protected function addApiAny( $route, $callback = null, $version = 1 ) {
         return $this->_addApiEndPoint( ['GET','POST'], $route, $callback, $version);
-        //return $this->_addApiEndPoint( \WP_REST_Server::ALLMETHODS, $route, $callback, $version);
     }
 
     protected function addDashLink( $url, $text, $title = '', $target = '_blank' ) {
@@ -375,7 +385,7 @@ class Plugin
 
         if ( $this->version == '' ) {
             $this->getInfo();
-            if ($this->version == '') {
+            if ( $this->version == '' ) {
                 add_action('plugins_loaded', function() {
                     if ( $this->version == '' ) {
                         $this->getInfo();
@@ -383,6 +393,13 @@ class Plugin
                 });
             }
         }
+
+        add_action('plugin_loaded', [$this, '_onLoad']);
+
+        if ( !has_action('plugins_loaded', [$this, 'initializeAddons']) ) {
+            add_action('plugins_loaded', [$this, 'initializeAddons']);
+        }
+
     }
 
     protected function initializeBackend() {
@@ -428,9 +445,33 @@ class Plugin
     }
 
     public function initializePage() {
+        $data = array();
         for ( $n=0; $n<count($this->pages); $n++ ) {
-            $this->pages[$n]->translate();
-            $this->pages[$n]->url = admin_url('admin.php?page=' . $this->pages[$n]->key);
+            $page = &$this->pages[$n];
+            $page->translate();
+            if ( $page->menuType == BE\MenuType::TOOLS ) {
+                $page->url = add_query_arg('page', $page->key, admin_url('tools.php'));
+            } else if ( $page->menuType == BE\MenuType::SETTINGS ) {
+                $page->url = add_query_arg('page', $page->key, admin_url('options-general.php'));
+            } else {
+                $page->url = add_query_arg('page', $page->key, admin_url('admin.php'));
+            }
+            if ( $page->menuHidden === true ) {
+                $last_slash_pos = strrpos($page->url, '/');
+                if ( $last_slash_pos !== false ) {
+                    $href = substr($page->url, $last_slash_pos + 1);
+                    $data[] = $href;
+                }
+            }
+            unset($page);
+        }
+        if ( count($data) > 0 ) {
+            $js = "jQuery(document).ready(function($) { ";
+            foreach ($data as $item) {
+                $js .= "$('a[href=\"$item\"]').closest('li').remove(); ";
+            }
+            $js .= " });";
+            $this->registerInlineScript($js);
         }
     }
     
@@ -445,10 +486,10 @@ class Plugin
             if (defined('ELEMENTOR_VERSION') && version_compare(ELEMENTOR_VERSION, '2.0.0', '>=') ) {
                 add_action('elementor/widgets/widgets_registered', [$this, 'initializeElementor']);
             } else {
-                //self::msgWarn('The minimum version of Elementor is 2.0.0.', true);
+                // self::msgWarn('The minimum version of Elementor is 2.0.0.', true);
             }
         } else {
-            //self::msgWarn('Elementor is not loaded.', true);
+            // self::msgWarn('Elementor is not loaded.', true);
         }
     }
 
@@ -475,7 +516,7 @@ class Plugin
                     $text = $link['text'];
                     $title = $link['title'];
                     $target = $link['target'];
-                    if (self::$internationalized) {
+                    if ( self::$internationalized ) {
                         $text = $this::t_($text);
                     }
                     $row_metas[] = '<a href="' . esc_html($url) . '" aria-label="' . esc_attr($text) . '" title="' . esc_attr($title) . '" target="' . esc_attr($target) . '">' . esc_html($text) . '</a>';
@@ -520,7 +561,7 @@ class Plugin
                     $metabox->registerCallback();
                     if ( $after_title && $metabox->context == 'after_title' ) {
                         add_action('edit_form_after_title',  function() {
-                            if ($this->gutenbergEnabled) { return false;}
+                            if ($this->gutenbergEnabled) { return; }
                             global $post, $wp_meta_boxes;
                             do_meta_boxes( get_current_screen(), 'after_title', $post ); // Output the "after_title" meta boxes
                             unset( $wp_meta_boxes[get_post_type($post)]['after_title'] ); // Remove the initial "after_title" meta boxes
@@ -530,12 +571,7 @@ class Plugin
                     }
                 }
             }
-            if ( count($this->pages) > 0 ) {
-                add_action( 'admin_menu', array($this, 'initializePage') );
-            }
-            if ( count($this->menu->pages) > 0 ) {
-                add_action( 'admin_menu', array($this, 'initializeMenu') );
-            }
+
             if ( count($this->scripts) > 0 ) {
                 for ($n=0; $n<count($this->scripts); $n++) {
                     $this->scripts[$n]->html();
@@ -551,11 +587,20 @@ class Plugin
                 add_filter( 'plugin_row_meta', [ $this, 'registerDashLink' ], 10, 2 );
             }
 
-            $file = "{$this->folder}/{$this->folder}.php";
-            if ( !is_multisite() ) {
-                add_action( "in_plugin_update_message-$file", [$this, 'displayUpdateNotice'], 10, 2 );
-            } else {
-                  add_action( "after_plugin_row_wp-{$file}", [$this, 'displayUpdateNoticeMS'], 10, 2 );
+            if ( $this->customUpdate == false ) {
+                $file = "{$this->folder}/{$this->folder}.php";
+                if ( !is_multisite() ) {
+                    add_action( "in_plugin_update_message-$file", [$this, 'displayUpdateNotice'], 10, 2 );
+                } else {
+                    add_action( "after_plugin_row_wp-{$file}", [$this, 'displayUpdateNoticeMS'], 10, 2 );
+                }
+            }
+
+            if ( count($this->pages) > 0 ) {
+                add_action( 'admin_menu', array($this, 'initializePage') );
+            }
+            if ( count($this->menu->pages) > 0 ) {
+                add_action( 'admin_menu', array($this, 'initializeMenu') );
             }
 
         } else {
@@ -570,13 +615,35 @@ class Plugin
             add_action( 'plugins_loaded', array( $this, 'checkElementor' ) );
         }
 
-        register_deactivation_hook($this->file, array($this, 'onDeactivate'));
+        if ( !is_null($this->file) ) {
+            register_activation_hook($this->file, array($this, 'onActivate'));
+            register_deactivation_hook($this->file, array($this, 'onDeactivate'));
+        }
+
+    }
+
+    public function onDatabaseUpdate($old_version, $new_version) {
+        //to be overridden, if needed
+    }
+
+    public function onActivate() {
+        //to be overridden, if needed
     }
 
     public function onDeactivate() {
         //to be overridden, if needed
     }
 
+    public function onLoad() {
+        //to be overridden, if needed
+    }
+
+    public function _onLoad($file) {
+        $folder = sosidee_check_path_separator( sosidee_dirname($file) );
+        if ( $folder == $this::$path ) {
+            $this->onLoad();
+        }
+    }
 
     /**
      * Checks if a shortcode is present in the posts and calls the function hasShortcode()
@@ -627,19 +694,19 @@ class Plugin
     *
     * @return integer : index of the group in the $clusters array
      *
-     * @TODO: move to DATA\Db or DATA\Group
+     * @TODO: move to DATA\Group
     **/
     protected function getGroupIndexById( $id ) {
         global $wpdb;
 
         $ret = false;
-        $sql = "SELECT option_name, option_value FROM $wpdb->options WHERE option_id=%d";
+        $sql = "SELECT option_name, option_value FROM {$wpdb->options} WHERE option_id=%d";
         $query = $wpdb->prepare( $sql, $id);
         $results = $wpdb->get_row($query, ARRAY_A);
-        if ($results) {
+        if ( $results ) {
             $key = sanitize_key( $results["option_name"] );
             $ret = $this->getClusterIndex($key);
-            if ($ret !== false) {
+            if ( $ret !== false ) {
                 $cluster = $this->clusters[$ret];
                 if ( $cluster instanceof Data\Group ) {
                     $data = maybe_unserialize( $results["option_value"] );
@@ -655,31 +722,31 @@ class Plugin
     }
 
     protected function isEncryptionPossible() {
-    	return extension_loaded( 'openssl' )
-		    && defined('SECURE_AUTH_KEY') && SECURE_AUTH_KEY != ''
-	           && defined('SECURE_AUTH_SALT') && SECURE_AUTH_SALT != '';
+        return extension_loaded( 'openssl' )
+            && defined('SECURE_AUTH_KEY') && SECURE_AUTH_KEY != ''
+            && defined('SECURE_AUTH_SALT') && SECURE_AUTH_SALT != '';
     }
 
     public function getTempFolder() {
         $ret = false;
-        $root = wp_upload_dir();
-        if ( $root['error'] === false ) {
-            $url = $root['baseurl'] . '/' .  $this->key;
-            $folder = $root['basedir'] . '/' .  $this->key;
+        $root = sosidee_upload_dir();
+        if ( $root !== false ) {
+            $url = $root['url'] . $this->key . '/';
+            $folder = $root['path'] . $this->key . DIRECTORY_SEPARATOR;
             $ok = is_dir($folder);
             if ( !$ok ) {
                 $ok = mkdir( $folder );
             }
             if ( $ok ) {
-                $file = $folder . DIRECTORY_SEPARATOR .  'index.html';
+                $file = $folder . 'index.html';
                 if ( !is_file($file) ) {
-                    $content = "<!DOCTYPE html><html><head><title>no way</title></head><body>you weren't supposed to be here</body></html>";
+                    $content = "<!DOCTYPE html><html lang=\"en\"><head><title>no way</title></head><body>you weren't supposed to be here</body></html>";
                     file_put_contents( $file, $content );
                 }
 
                 $ret = array();
-                $ret['basedir'] = $folder;
-                $ret['baseurl'] = $url;
+                $ret['path'] = $folder;
+                $ret['url'] = $url;
             }
         }
         return $ret;
@@ -776,6 +843,21 @@ class Plugin
                 );
             }
         }
+    }
+
+    protected function setHelp( $key ) {
+        self::$helpUrl = str_replace( '{KEY}', $key, self::$helpUrl );
+    }
+
+    public function help( $path = '', $style = 'margin: 0.75em; float: right;' ) {
+        $url = self::$helpUrl . $path;
+        $ret = '<a href="' . esc_url($url) . '" onclick="this.blur();" target="_blank" title="help"><i class="dashicons dashicons-editor-help"';
+        $style = HtmlTag::getStyle($style, 'color: #ffcc00; font-size: 1.5em; text-decoration: none;');
+        if ( !is_null($style) ) {
+            $ret .= ' style="' . esc_attr($style) . '"';
+        }
+        $ret .= '></i></a>';
+        return $ret;
     }
 
 }

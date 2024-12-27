@@ -19,6 +19,7 @@ class Control
     public $default;
     public $options;
     public $text;
+    public $multiple;
 
     public function __construct( $key, $type ) {
         $this->key = $key;
@@ -29,6 +30,7 @@ class Control
         $this->default = '';
         $this->options = array();
         $this->text = '';
+        $this->multiple = false;
     }
 
     public  function getArgs() {
@@ -53,6 +55,9 @@ class Control
         }
         if ( count($this->options) > 0 ) {
             $ret['options'] = $this->options;
+        }
+        if ( $this->multiple != false ) {
+            $ret['multiple'] = true;
         }
         return $ret;
     }

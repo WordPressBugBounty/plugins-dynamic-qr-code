@@ -2,10 +2,13 @@
 namespace SOSIDEE_DYNAMIC_QRCODE\SRC;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
-use SOSIDEE_DYNAMIC_QRCODE\SosPlugin;
+use SOSIDEE_DYNAMIC_QRCODE\SOS\Http\Request;
 
 class QrCode
 {
+
+    use \SOSIDEE_DYNAMIC_QRCODE\SOS\WP\TBase;
+    use \SOSIDEE_DYNAMIC_QRCODE\SOS\WP\TMessage;
 
     const CYPHER_LENGTH = 66;
     const CYPHER_LENGTH_MIN = 16;
@@ -38,18 +41,87 @@ class QrCode
     }
 
     public static function getStatus( $item ) {
+        if ( $item->disabled ) {
+            return QrCodeStatus::DISABLED;
+        }
+
+        if ( $item->device_os != OS::UNKNOWN ) {
+            if ( !OS::isValid( $item->device_os ) ) {
+                return QrCodeStatus::DISABLED;
+            }
+        }
+
+        if ( !DotW::isValid($item->dotw) ) {
+            return QrCodeStatus::DISABLED;
+        }
+
+        $datetime_from = self::getDateTime( $item->date_from, $item->time_from, self::DATETIME_MODE_FROM);
+        $datetime_to = self::getDateTime( $item->date_to, $item->time_to, self::DATETIME_MODE_TO);
+        if ( !is_null($datetime_from) || !is_null($datetime_to)  ) {
+            $now = sosidee_current_datetime();
+            if ( !is_null($datetime_from) && $datetime_from > $now ) {
+                return QrCodeStatus::INACTIVE;
+            } else if ( !is_null($datetime_to) && $datetime_to < $now ) {
+                return QrCodeStatus::EXPIRED;
+            }
+        }
+
+        if ( $item->device_lang != '' ) {
+            $languages = Request::getLanguages();
+            if ( is_array($languages) ) {
+                $found = false;
+                foreach ($languages as $lang) {
+                    if ( $item->device_lang == $lang ) {
+                        $found = true;
+                        break;
+                    }
+                }
+                if ( !$found ) {
+                    return QrCodeStatus::DISABLED;
+                }
+            } else {
+                if ( !$item->browser ) {
+                    return QrCodeStatus::DISABLED;
+                }
+            }
+        }
+
+        if ( $item->max_scan_tot > 0 ) {
+            self::plugin()->config->sharedCodeEnabled->load();
+            $by_key = self::plugin()->config->sharedCodeEnabled->value;
+            if ( $by_key ) {
+                $current = self::database()->countActiveLogsByCode( $item->code );
+            } else {
+                $current = self::database()->countActiveLogsById( $item->qrcode_id );
+            }
+            if ( $current !== false ) {
+                if ( $current > $item->max_scan_tot ) {
+                    return QrCodeStatus::FINISHED;
+                }
+            } else {
+                if ( $by_key ) {
+                    sosidee_log("database.countActiveLogsByCode({$item->code}) returned false.");
+                } else {
+                    sosidee_log("database.countActiveLogsById({$item->qrcode_id}) returned false.");
+                }
+            }
+        }
+
+        return QrCodeStatus::ACTIVE;
+
+        /*
         $ret = QrCodeStatus::NONE;
 
         if ( !$item->disabled ) {
-            if ( OS::isValid( $item->device_os) ) {
+            if ( OS::isValid( $item->device_os ) ) {
 
-                $datetime_from = self::getDateTime( $item->date_from, $item->time_from, self::DATETIME_MODE_FROM );
-                $datetime_to = self::getDateTime( $item->date_to, $item->time_to, self::DATETIME_MODE_TO );
+                $datetime_from = self::getDateTime( $item->date_from, $item->time_from );
+                $datetime_to = self::getDateTime( $item->date_to, $item->time_to );
 
                 if ( is_null($datetime_from) && is_null($datetime_to)  ) {
                     $ret = QrCodeStatus::ACTIVE;
                 } else {
-                    $now = sosidee_current_datetime();
+                    $now = sosidee_server_datetime();
                     if ( !is_null($datetime_from) && $datetime_from > $now ) {
                         $ret = QrCodeStatus::INACTIVE;
                     } else if ( !is_null($datetime_to) && $datetime_to < $now ) {
@@ -66,8 +138,10 @@ class QrCode
                 }
 
                 if ( $ret == QrCodeStatus::ACTIVE && $item->max_scan_tot > 0 ) {
-                    $plugin = SosPlugin::instance();
-                    $current = $plugin->database->countActiveLogs( $item->code );
+                    //$plugin = SosPlugin::instance();
+                    //$current = $plugin->database->countActiveLogs( $item->code );
+                    //$current = self::plugin()->database->countActiveLogs( $item->code );
+                    $current = self::plugin()->database->countActiveLogs( $item->qrcode_id );
                     if ( $current !== false ) {
                         if ( $current > $item->max_scan_tot ) {
                             $ret = QrCodeStatus::FINISHED;
@@ -78,7 +152,8 @@ class QrCode
                 }
 
                 if ( $ret == QrCodeStatus::ACTIVE && $item->device_lang != '' ) {
-                    $languages = Mobile::getLanguages();
+                    $languages = Request::getLanguages();
+                    //$languages = Mobile::getLanguages();
                     if ( is_array($languages) ) {
                         $found = false;
                         foreach ($languages as $lang) {
@@ -100,6 +175,7 @@ class QrCode
             $ret = QrCodeStatus::DISABLED;
         }
         return $ret;
+        */
     }
 
     private static function getRedirUrl( $specific, $general, $error ) {
@@ -140,19 +216,18 @@ class QrCode
 
     private static function initializeLibrary() {
         if ( !self::$initialized ) {
-                $plugin = SosPlugin::instance();
-                $folder = $plugin->getTempFolder();
-                self::$rootFolder = $folder['basedir'];
-                self::$rootUrl = $folder['baseurl'];
-                require_once realpath(__DIR__ . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "phpqrcode.php" );
-                self::$initialized = true;
+            $folder = self::plugin()->getTempFolder();
+            self::$rootFolder = $folder['path'];
+            self::$rootUrl = $folder['url'];
+            require_once realpath(__DIR__ . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "phpqrcode.php" );
+            self::$initialized = true;
         }
     }
 
     public static function getUrl( $name, $text, $size, $pad = 0, $foreColor = 0x000000, $backColor = 0xFFFFFF ) {
         self::initializeLibrary();
         $filename = "{$name}.png";
-        $filepath = self::$rootFolder . DIRECTORY_SEPARATOR . $filename;
+        $filepath = self::$rootFolder . $filename;
 
         //$text = 'https://redirect.soslink.net/dynamic-qr-code/demo'; // only for the demo
 
@@ -164,7 +239,7 @@ class QrCode
             LIB\QRimage::$PADDING = 0;
         }
 
-        return self::$rootUrl . "/" . $filename;
+        return self::$rootUrl . $filename;
     }
 
     public static function getString( $text, $size, $pad = 0, $foreColor = 0x000000, $backColor = 0xFFFFFF ) {
@@ -210,8 +285,7 @@ class QrCode
     }
 
     public static function getNewCypher() {
-        $plugin = SosPlugin::instance();
-        $length = $plugin->config->cypherLength->getValue();
+        $length = self::plugin()->config->cypherLength->getValue();
         return bin2hex( random_bytes($length) );
     }
 
@@ -220,6 +294,26 @@ class QrCode
     }
     public static function getDecLen( $value ) {
         return floor(3 * $value / 8 );
+    }
+
+    public static function loadQrCodeList( $caption = false, $include_cancelled = false ) {
+        $ret = [];
+        if ( $caption !== false ) {
+            $ret[0] = $caption;
+        }
+
+        $results = self::database()->loadQrCodeList( $include_cancelled );
+
+        if ( is_array($results) ) {
+            if ( count($results) > 0 ) {
+                for ( $n=0; $n<count($results); $n++ ) {
+                    $ret[ $results[$n]->qrcode_id ] = $results[$n]->description;
+                }
+            }
+        } else {
+            self::msgErr( 'A problem occurred while reading the qr code list from the database.' );
+        }
+        return $ret;
     }
 
 }

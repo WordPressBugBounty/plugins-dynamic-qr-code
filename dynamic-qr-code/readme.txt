@@ -1,11 +1,11 @@
 === Dynamic QR Code - generator ===
 Plugin Name: Dynamic QR Code
 Contributors: sosidee
-Tags: qr code, dynamic qr code, dynamic qr code generator
-Requires at least: 5.3.0
-Tested up to: 6.5.2
-Stable tag: 0.9.3
-Requires PHP: 7.4
+Tags: qr code, qr code generator, dynamic qr code, dynamic qr code generator
+Requires at least: 5.9.0
+Tested up to: 6.7
+Stable tag: 1.0.0
+Requires PHP: 8.0
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -16,46 +16,48 @@ Allows you to generate DYNAMIC QR CODES: you can modify what happens when scanni
 ### This plugin is a dynamic QR code generator ###
 
 A *dynamic* QR code?
-Yes, the core idea is that *information* associated with the QR code is handled by the plugin and not encoded inside the QR code itself: that's, in short, the essence of *dynamic* QR codes.
+Yes, the core idea is that *information* associated with the QR code is managed by the plugin rather than being encoded directly within the QR code itself: this is, in essence, the definition of a *dynamic* QR code.
 
-In other words, **Dynamic QR Code** permits to change the information encoded in a QR code **without having to modify** the QR code itself.
-Furthermore, the QR code scans are tracked and available for statistical analysis.
+In other words, **Dynamic QR Code** allows you to change the information linked to a QR code **without having to alter** the QR code itself.
+Additionally, scans of the QR codes are tracked and available for statistical analysis.
 
-Let's be plain with few simple examples:
-> SCENARIO: you want to store in a QR code the web page of the pharmacy in duty.
-> PROBLEM: the pharmacy changes at every shift, and you can't (or don't want to) rebuild and reprint the QR code every time.
-> SOLUTION: Dynamic QR Code lets you change the pharmacy web page URL without modifying the QR code.
+Let's be straightforward with a few simple examples:
+> SCENARIO: you want to store the web page of the pharmacy in duty in a QR code.
+> PROBLEM: the pharmacy changes with each shift, and you can't (or don't want to) rebuild and reprint the QR code every time.
+> SOLUTION: Dynamic QR Code allows you to change the pharmacy webpage URL without modifying the QR code itself.
 >
-> SCENARIO: you want people will be redirected to your current promotion web page after scanning the QR codes that you distributed to your resellers.
-> PROBLEM: the page URL changes quite often for some reason (e.g. you want to promote different products without having to modify the very same web page continuously) but you don't want to waist your time in rebuilding, reprinting and resending QR codes to your resellers.
-> SOLUTION: Dynamic QR Code lets you change the redirect URL to your current promotion page without modifying the QR code.
+> SCENARIO: you want customers to be redirected to your current promotion webpage after scanning the QR codes you distributed to your resellers.
+> PROBLEM: the page URL changes frequently for various reason (e.g. you want to promote different products without continuously modifying the same webpage) but you don't want to waste time rebuilding, reprinting and resending QR codes to your resellers.
+> SOLUTION: Dynamic QR Code permits you to change the redirect URL to your current promotion page without modifying the QR code image.
 >
-> SCENARIO: you want to track the scans of your QR code to analyze data and get statistical information.
+> SCENARIO: you want to track the scans of your QR code to analyze data and gather statistical information.
 > PROBLEM: there's no easy way to track the activity of people who scan static QR codes.
-> SOLUTION: Dynamic QR Code automatically tracks the scans and let you download the data for statistical analysis.
+> SOLUTION: Dynamic QR Code automatically tracks the scans and lets you download the data for statistical analysis.
 >
-> SCENARIO: you want your customers to scan a QR code to view the menu of your restaurant.
-> PROBLEM: the menu changes every day of the week, so 7 different QR codes would be necessary to cover the week.
-> SOLUTION: Dynamic QR Code generates a single QR code that redirects your customers depending on the day of the week.
+> SCENARIO: you want your customers to scan a QR code to view your restaurant's menu.
+> PROBLEM: the menu changes every day of the week, so you would need 7 different QR codes would to cover the entire week.
+> SOLUTION: Dynamic QR Code generates a single QR code that redirects your customers to the appropriate menu depending on the day of the week.
 
-### Kinds of scenario for dynamic QR codes ###
+### Types of scenarios for dynamic QR codes ###
 
-* You need a QR code with a link that can be modified without having to change the QR code.
-* You need to know how many times your QR code has been scanned.
+* You need a QR code with a link that can be modified without changing the QR code image.
+* You need to track how many times your QR code has been scanned.
 * You need a QR code that redirects users to different URLs depending on the date or on the day of the week.
-* You need a web page that can be viewed only by scanning a QR code.
+* You need a webpage that can only be accessed by scanning a QR code.
 * You need a QR code that can be scanned a limited number of times.
+* You need a QR code that opens a Facebook/Instagram/LinkedIn profile directly in the Facebook/Instagram/LinkedIn app (PRO feature).
 
 Examples:
 
-* You want to track when customers open your products: *print on them a dynamic QR code for something appealing for the customers (e.g. a giveaway lottery, a discount coupon, etc.) and get the statistics.*
-* You want to provide additional product information through videos that can change from time to time: *use a dynamic QR code that redirects to the current video.*
-* You want to measure your customers' engagement in your physical stores: *with dynamic QR codes you can track the users' activity.*
-* You want to measure your marketing campaigns in the physical world: *dynamic QR codes make you be able to perform it.*
-* You want to give information on your weekly program: *use a dynamic QR code to show the program of the current day.*
+* You want to track when customers open your products: *print on them a dynamic QR code for something appealing for to customers (e.g. a giveaway lottery, a discount coupon, etc.) and gather the statistics.*
+* You want to provide additional product information through videos that can change over time: *use a dynamic QR code that redirects to the current video.*
+* You want to measure customer engagement in your physical stores: *dynamic QR codes allow you to track the user activity.*
+* You want to measure  the effectiveness of your marketing campaigns in the physical world: *dynamic QR codes enable you be able to do so.*
+* You want to provide information about your weekly program: *use a dynamic QR code to show the schedule for the current day.*
 * You want to display a prize voucher only to people that enter in your shop(s) and scan a QR code.
+* You want to open a YouTube video directly in the YouTube app (PRO feature).
 
-See the <a href="https://redirect.soslink.net/dynamic-qr-code/help/scenarios" target="_blank" title="tutorial">online manual</a> for details.
+See the <a href="https://support.sosidee.com/dynamic-qr-code/general-concepts/" target="_blank" title="tutorial">online manual</a> for details.
 
 ### GETTING STARTED ###
 
@@ -70,55 +72,54 @@ From the Dynamic QR Code plugin console, create a new *QR-Code* item:
 
 Then use the *QR-URL* generated by the plugin to create the image of your QR code, or just download the image generated in the plugin page.
 
-&raquo; Check the <a href="https://redirect.soslink.net/dynamic-qr-code/help/" target="_blank" title="tutorial">online manual</a> for details &laquo;
+&raquo; Check the <a href="https://support.sosidee.com/dynamic-qr-code/" target="_blank" title="tutorial">online manual</a> for details &laquo;
 
 **Note**
-If you need to create QR-Codes with the same key, you have to activate the 'Disable unique keys' check box in the Settings page: in this case, identical keys will generate identical qr code images and the redirect URL will be chosen randomly or on the base of the conditions set in the QR-Code.
+If you need to create QR-Codes with the same key, you have to activate the 'Disable unique keys' option on the Settings page: in this case, identical keys will generate identical qr code images and the redirect URL will be chosen either randomly or based on the conditions set in the QR-Code.
 
 **RANDOM REDIRECT**
-If you want users randomly redirected to a URL chosen among some:
+If you want users to be randomly redirected to a URL chosen from several options:
 
-- activate the 'Disable unique keys' check box in the Settings page
-- create two or more QR-Codes with the same key and different URLs
+- activate the 'Disable unique keys' checkbox in the Settings page
+- create two or more QR-Codes with the same key but different URLs
 
-Users will be redirected to a URL randomly drawn among the available ones (i.e. among the URLs of the valid QR-Codes with the same key of the scanned one).
+Users will be redirected to a URL randomly selected from the available ones (i.e. among the URLs of the valid QR-Codes that share the same key as the one scanned).
 
-*Please note that the drawn procedure of URLs uses a pseudo-random generation of numbers. Therefore, do not use this feature to create true lotteries or gambling games.*
+*Please note that the URL selection process uses a pseudo-random number generation. Therefore, do not use this feature for true lotteries or gambling games.*
 
-**DATE DEPENDENT REDIRECT**
-If you want users redirected to different URLs depending on the date:
+**DATE-DEPENDENT REDIRECT**
+If you want users to be redirected to different URLs depending on the date:
 
-- activate the 'Disable unique keys' check box in the Settings page
+- activate the 'Disable unique keys' checkbox on the Settings page
 - create two or more QR-Codes with
     - the same key
-    - different date interval of validity
-    - different URL
+    - different date intervals of validity
+    - different URLs
 
-The URL users will be redirected to will depend on which QR-Code will be valid at the scan date.
+The URL users are redirected to will depend on which QR-Code is valid on the scan date.
 
-**DAY OF THE WEEK DEPENDENT REDIRECT**
-If you want users redirected to different URLs depending on the day of the week:
+**DAY-OF-THE-WEEK DEPENDENT REDIRECT**
+If you want users to be redirected to different URLs depending on the day of the week:
 
-- activate the 'Disable unique keys' check box in the Settings page
+- activate the 'Disable unique keys' checkbox on the Settings page
 - create 7 QR-Codes with
     - the same key
     - different redirect URLs
-- assign each QR-Code to a different day of the week
+- assign each QR-Code to a specific day of the week
 
-**EXCEPTION DATE FOR A DAY OF THE WEEK DEPENDENT REDIRECT**
-Let's say you want your users redirected on Easter differently respect on the usual URL for Sunday:
+**EXCEPTION DATE FOR A DAY-OF-THE-WEEK DEPENDENT REDIRECT**
+Let's say you want your users to be redirected on Easter differently compared to the usual Sunday URL:
 
-- activate the 'Disable unique keys' check box in the Settings page
-- create a QR-Code that redirects to URL1 and assign it to Sunday (this will be the usual redirect)
+- follow the DAY-OF-THE-WEEK DEPENDENT REDIRECT instructions to create 7 QR-Codes
 - then create another QR-Code with
     - the same key
-    - redirect set to URL2 (i.e. different from URL1)
-    - activation date set on the date of Easter
-    - priority checkbox activated
+    - the redirect URL set to the URL for Easter
+    - the activation date set to the date of Easter
+    - the priority checkbox activated
 
-Users will be redirected to URL1 on every Sunday but on Easter, when they'll be redirected to URL2.
+If *https://mydomain.com/sunday* is the URL for Sunday and *https://mydomain.com/easter* is the URL for Easter, users will be redirected to *https://mydomain.com/sunday* on every Sunday except on Easter, when they'll be redirected to *https://mydomain.com/easter*.
 
-&raquo; Check the <a href="https://redirect.soslink.net/dynamic-qr-code/help/" target="_blank" title="tutorial">online manual</a> for more scenarios &laquo;
+&raquo; Check the <a href="https://support.sosidee.com/dynamic-qr-code/" target="_blank" title="tutorial">online manual</a> for more scenarios &laquo;
 
 **My FastAPP**
 If you wish to use your QR-Code with <a href="https://wordpress.org/plugins/my-fastapp/" target="_blank" title="create a native app with WP">My FastAPP</a> in order to track the single users' scans, follow <a href="https://redirect.soslink.net/dynamic-qr-code/help/mfa" target="_blank" title="tutorial">these instructions</a>.
@@ -128,18 +129,19 @@ If you wish to use your QR-Code with <a href="https://wordpress.org/plugins/my-f
 STATIC QR CODE
 
 - encoded information cannot be modified
-- scans track procedures are all but straightforward
+- tracking scan activity is complicated and often not straightforward
 
 DYNAMIC QR CODE
 
 - embedded information can be changed
-- scans can be easily tracked
+- scans can be easily tracked and then analyzed
 
 ### Statistics ###
 
 QR code scans are logged and available for statistical analysis.
+Some basic statistics, available as PRO add-ons, include scan distributions grouped by date, day, device type, country, and more.
 
-Enabling the *My FastAPP options* (from the *Settings* menu item), it's possible to distinguish the activity of the various users by the *User Key* values.
+By enabling the *My FastAPP options* (available under the *Settings* menu), you can differentiate user activity using *User Key* values.
 
 == Screenshots ==
 
@@ -151,39 +153,48 @@ Enabling the *My FastAPP options* (from the *Settings* menu item), it's possible
 = Is this plugin a QR code generator ? =
 
 Yes, Dynamic QR Code generates the image of your QR code.
-Nevertheless, you can use an equivalent image created by any third party tool.
+However, you can also use an equivalent image created by any third-party tool.
+
+= How many dynamic QR codes can I generate ? =
+
+As many as you wish (and as many as your WordPress site can handle).
+
+= What is a dynamic QR code ? =
+
+In short, it's a simple QR code with a redirection URL encoded in it.
+This means that the information (the data read scanning the QR code) is stored outside the QR code.
+With Dynamic QR Code this information is stored in your WordPress website, allowing you to change it whenever you wish.
+
+= What is a static QR code ? =
+
+A QR code is defined as *static* when the information associated with it is embedded directly in its code. Most QR codes are static.
+
+= Do QR codes expire ? =
+
+A *static* QR code can expire if the information encoded in it's' no longer valid, requiring you to rebuild and reprint it.
+A *dynamic* QR code can expire in the same way, but (and that's the significant difference) it can be brought back to life simply updating the information stored online.
+
+= Can I use a QR code image generated by another tool? =
+
+Yes, as long as the image encodes the correct QR-URL.
 
 = Is this plugin a free QR code generator ? =
 
 Yes, Dynamic QR Code is free.
 
-= How many dynamic QR codes can I generate ? =
+= Is there a PRO version? =
 
-As many as you wish (and your WP site handles).
-
-= What is a dynamic QR code ? =
-
-Shortly, it's a simple QR code with a redirection URL encoded in it.
-That means that the information (the data read scanning the QR code) is located outside the QR code.
-With Dynamic QR Code this information is memorized in your WordPress website, with the huge advantage that you can change it whenever you wish.
-
-= What is a static QR code ? =
-
-A QR code is defined *static* when the information associated with it is embedded in its code. Most QR codes are static.
-
-= Do dynamic QR codes expire ? =
-
-A *static* QR code can expire because the information you encoded in it may no longer be valid, so you need to rebuild and reprint it.
-A *dynamic* QR code can expire in the same way, but (and that's the huge difference) it can be brought back to life simply updating the information stored online.
-
-= Can I use a QR code image generated by another tool? =
-
-Yes, as long as you encode in the image the correct QR-URL.
+Yes, absolutely! You can find all the information about the PRO version and how to purchase it at this URL: [https://sosplugin.com/dynamic-qr-code/](https://sosplugin.com/dynamic-qr-code/)
 
 == Upgrade Notice ==
-It seems this section is not used anymore.
+This is a major upgrade. Please ensure you back up your site before updating.
 
 == Changelog ==
+
+= 1.0.0 =
+* Code refactored to ensure compatibility with add-ons provided by the Pro License Manager plugin.
+* Improved integration with Pro License Manager to support additional features.
+* Minor bug fixes and performance improvements.
 
 = 0.9.3 =
 * Excluded the metabox nonce verification if an article has the type property different from 'post' or 'page'

@@ -34,9 +34,10 @@ class Cookie
     private static $domain = '';
     private static $DOMAINS = [];
 
+    /** @noinspection HttpUrlsUsage */
     public static function getDomain() {
         if ( empty(self::$domain) ) {
-            $url = strtolower( esc_url_raw($_SERVER['HTTP_HOST']) );
+            $url = isset($_SERVER['HTTP_HOST']) ? strtolower( esc_url_raw($_SERVER['HTTP_HOST']) ) : '';
             if ( sosidee_str_starts_with($url, 'https://') ) {
                 $url = substr($url, strlen('https://'));
             } else if ( sosidee_str_starts_with($url, 'http://') ) {

@@ -2,15 +2,19 @@
 namespace SOSIDEE_DYNAMIC_QRCODE\SRC;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
+use SOSIDEE_DYNAMIC_QRCODE\SOS\Mobile;
+
 class OS
 {
-    const NONE = 0;
+
+    const UNKNOWN = 0;
     const ANDROID = 1;
     const IOS = 2;
     const OTHER = 3;
 
+
     public static function isValid( $value ) {
-        if ( $value != self::NONE) {
+        if ( $value != self::UNKNOWN) {
             if ( Mobile::android() ) {
                 return $value == self::ANDROID;
             } else if ( Mobile::ios() ) {
@@ -23,11 +27,11 @@ class OS
         }
     }
 
-    public static function getList($caption = false) {
+    public static function getList( $caption = false ) {
         $ret = array();
 
         if ($caption !== false) {
-            $ret[self::NONE] = $caption;
+            $ret[self::UNKNOWN] = $caption;
         }
         $ret[self::ANDROID] = self::getDescription(self::ANDROID);
         $ret[self::IOS] = self::getDescription(self::IOS);
@@ -37,7 +41,7 @@ class OS
     }
 
     public static function getDescription( $value ) {
-        $ret = '';
+        $ret = 'unknown';
         switch ($value) {
             case self::ANDROID:
                 $ret = 'Android';

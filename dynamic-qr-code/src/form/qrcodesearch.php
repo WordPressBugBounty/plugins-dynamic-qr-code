@@ -2,7 +2,7 @@
 namespace SOSIDEE_DYNAMIC_QRCODE\SRC\FORM;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
-use \SOSIDEE_DYNAMIC_QRCODE\SRC as SRC;
+use SOSIDEE_DYNAMIC_QRCODE\SRC as SRC;
 
 class QrCodeSearch extends Base
 {
@@ -24,7 +24,7 @@ class QrCodeSearch extends Base
     }
 
     public function htmlButtonLink( $id = 0 ) {
-        $this->_plugin->formEditQrCode->htmlButtonLink( $id );
+        self::plugin()->formEditQrCode->htmlButtonLink( $id );
     }
 
     protected function initialize() {
@@ -45,17 +45,17 @@ class QrCodeSearch extends Base
             'status' => intval( $this->status->value )
         ];
 
-        $results = $this->_database->loadQrCodes( $filters );
+        $results = self::database()->loadQrCodes( $filters );
 
         if ( is_array($results) ) {
             if ( count($results) > 0 ) {
                 for ( $n=0; $n<count($results); $n++ ) {
                     $results[$n]->creation_string = $results[$n]->creation->format( "Y/m/d H:i:s" );
-                    $results[$n]->url_api = $this->_plugin->getApiUrl( $results[$n]->code );
+                    $results[$n]->url_api = self::plugin()->getApiUrl( $results[$n]->code );
                     $results[$n]->status_icon = SRC\QrCodeSearchStatus::getStatusIcon( !$results[$n]->disabled );
                 }
             } else {
-                if ( $this->status->value > 0 ) {
+                if ( $this->status->value != 0 ) {
                     self::msgInfo( 'No results match the search.' );
                 } else {
                     self::msgInfo( "There's no data in the database." );

@@ -2,10 +2,11 @@
 namespace SOSIDEE_DYNAMIC_QRCODE\SRC;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
-use \SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOSWP;
+use SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOSWP;
 
 class OTKey
 {
+    use \SOSIDEE_DYNAMIC_QRCODE\SOS\WP\TBase;
 
     const COOKIENAME = 'sos_dynqrcode_ot_key';
 
@@ -22,8 +23,13 @@ class OTKey
     }
 
     public static function deleteCookie() {
-        return SOSWP\Cookie::del( self::COOKIENAME );
+        SOSWP\Cookie::del( self::COOKIENAME );
     }
 
+    public static function setJsCookieEraser() {
+        $cookie = self::COOKIENAME;
+        $js = "document.cookie = '{$cookie} =; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';";
+        self::plugin()->addDeleteCookieScript( $js );
+    }
 
 }

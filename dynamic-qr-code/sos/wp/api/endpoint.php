@@ -14,10 +14,10 @@ class EndPoint
     private $callback;
     private $route;
 
-    public $localized;
     private $configName;
     private $configData;
 
+    public $localized;
     public $nonceDisabled;
 
     public function __construct($method, $route, $callback, $version) {

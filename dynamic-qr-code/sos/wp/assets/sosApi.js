@@ -1,5 +1,4 @@
-function sosAjaxReqConf(config)
-{
+function sosAjaxReqConf(config) {
     let ret = {
          url: config.url
         ,method: config.method

@@ -1,16 +1,23 @@
 <?php
+defined( 'SOSIDEE_PROLICMAN' ) or die( 'you were not supposed to be here' );
+
 $plugin = \SOSIDEE_DYNAMIC_QRCODE\SosPlugin::instance();
 $form = $plugin->formSearchLog;
+$show_lang = $form->showLang();
+$show_geo = $form->showGeo();
+$show_desc = $form->showDesc();
+$show_os = $form->showOS();
+
 $logs = $form->logs;
 
 $plugin->config->load(); // load current configuration
 $code_shared = $plugin->config->sharedCodeEnabled->value;
 $mfa_enabled = $plugin->config->mfaEnabled->value;
 
-echo $plugin->help('logs');
+echo $plugin->help('scan-logs');
 
+$plugin->htmlAdminPageTitle('Scan logs');
 ?>
-<h1>Scan logs</h1>
 
 <div class="wrap">
 
@@ -19,35 +26,45 @@ echo $plugin->help('logs');
     <?php $form->htmlOpen(); ?>
 
     <table class="form-table" role="presentation">
-        <thead>
-        <tr>
-            <th scope="col" class="centered middled">QR-Code</th>
-            <th scope="col" class="centered middled">From date<br>(h <?php echo sosidee_time_format( \DateTime::createFromFormat('YmdHis', "20000001000000") ); ?>)</th>
-            <th scope="col" class="centered middled">To date<br>(h <?php echo sosidee_time_format( \DateTime::createFromFormat('YmdHis', "20000001235959") ); ?>)</th>
-            <th scope="col" class="centered middled">Status</th>
-            <th scope="col" class="centered middled"></th>
-            <th scope="col" class="centered middled"></th>
-        </tr>
-        </thead>
         <tbody>
-        <td class="centered middled">
-            <?php $form->htmlQID(); ?>
-        </td>
-        <td class="centered middled">
-            <?php $form->htmlFrom(); ?>
-        </td>
-        <td class="centered middled">
-            <?php $form->htmlTo(); ?>
-        </td>
-        <td class="centered middled">
-            <?php $form->htmlStatus(); ?>
-        </td>
-        <td class="centered middled">
-            <?php $form->htmlButton( 'search', 'search' ); ?>
-        </td>
-        <td class="centered middled">
-            <?php $form->htmlCancelAll(); ?>
-        </td>
+        <tr>
+            <td class="centered topped">
+                <span class="bolded">QR-Code</span><br>
+                <?php $form->htmlQID(); ?>
+            </td>
+            <td class="centered topped">
+                <span class="bolded">From date</span><br>
+                <?php $form->htmlFrom(); ?>
+                <br><span class="fs90pc">(h <?php echo sosidee_time_format( \DateTime::createFromFormat('YmdHis', "20000001000000") ); ?>)</span>
+            </td>
+            <td class="topped" rowspan="2">
+                <span class="bolded" style="margin-bottom: 4px; display:block;">Display</span>
+                <?php $form->htmlShowGeo(); ?>
+                <br>
+                <?php $form->htmlShowLang(); ?>
+                <br>
+                <?php $form->htmlShowDesc(); ?>
+                <br>
+                <?php $form->htmlShowOS(); ?>
+            </td>
+            <td class="centered middled">
+                <?php $form->htmlCancelAll(); ?>
+            </td>
+        </tr>
+        <tr>
+            <td class="centered topped">
+                <span class="bolded">Status</span><br>
+                <?php $form->htmlStatus(); ?>
+            </td>
+            <td class="centered middled">
+                <span class="bolded">To date</span><br>
+                <?php $form->htmlTo(); ?>
+                <br><span class="fs90pc">(h <?php echo sosidee_time_format( \DateTime::createFromFormat('YmdHis', "20000001235959") ); ?>)</span>
+            </td>
+            <td class="centered middled">
+                <?php $form->htmlButton( 'search', 'search' ); ?>
+            </td>
+        </tr>
         </tbody>
     </table>
 
@@ -57,7 +74,7 @@ echo $plugin->help('logs');
     if ( is_array($logs) && count($logs)>0 ) {
         echo '<p>&nbsp; Record(s) found: ' . count($logs) . '</p>';
     }
-
+/*
         $sw_uk = '30%';
         if ( $mfa_enabled ) {
             $sw_date = '15%';
@@ -80,34 +97,42 @@ echo $plugin->help('logs');
             $sw_state = '10%';
             $sw_btn = '20%';
         }
-        //
+*/
 
+    if ( is_array($logs) && count($logs)>0 ) {
     ?>
 
     <table class="form-table sqc bordered" role="presentation">
         <thead>
         <tr>
-            <th scope="col" class="bordered middled centered" style="width:<?php echo esc_attr( $sw_date ); ?>">Date</th>
-            <th scope="col" class="bordered middled centered" style="width:<?php echo esc_attr( $sw_code ); ?>">Key</th>
-            <th scope="col" class="bordered middled centered" style="width:<?php echo esc_attr( $sw_state ); ?>">Status</th>
+            <th scope="col" class="bordered middled centered">Date</th>
+            <th scope="col" class="bordered middled centered">Status</th>
+            <th scope="col" class="bordered middled centered">Key</th>
             <?php if ( $code_shared ) { ?>
-                <th scope="col" class="bordered middled centered" style="width:<?php echo esc_attr( $sw_qid ); ?>">Q-ID</th>
+                <th scope="col" class="bordered middled centered">Q-ID</th>
+            <?php } ?>
+            <?php if ( $show_desc ) { ?>
+                <th scope="col" class="bordered middled centered">Description</th>
+            <?php } ?>
+            <?php if ( $show_lang ) { ?>
+                <th scope="col" class="bordered middled centered">Language</th>
+            <?php } ?>
+            <?php if ( $show_geo ) { ?>
+                <th scope="col" class="bordered middled centered">Country</th>
+            <?php } ?>
+            <?php if ( $show_os ) { ?>
+                <th scope="col" class="bordered middled centered">Op. System</th>
             <?php } ?>
             <?php if ( $mfa_enabled ) { ?>
-                <th scope="col" class="bordered middled centered" style="width:<?php echo esc_attr( $sw_uk ); ?>">My FastAPP User Key</th>
+                <th scope="col" class="bordered middled centered">My FastAPP User Key</th>
             <?php } ?>
-            <th scope="col" class="centered middled" style="width:<?php echo esc_attr( $sw_btn ); ?>">
-                <?php
-                if ( is_array($logs) && count($logs)>0 ) {
-                    $form->htmlDownload( $logs, $code_shared, $mfa_enabled );
-                }
-                ?>
+            <th scope="col" class="centered middled">
+                <?php $form->htmlDownload( $logs, $mfa_enabled ); ?>
             </th>
         </tr>
         </thead>
         <tbody>
         <?php
-        if ( is_array($logs) && count($logs)>0 ) {
             for ($n=0; $n<count($logs); $n++) {
                 $item = $logs[$n];
 
@@ -117,24 +142,40 @@ echo $plugin->help('logs');
                 $quid = \SOSIDEE_DYNAMIC_QRCODE\SRC\QrCode::getQID( $item->qrcode_id );
                 $status_icon = $item->status_icon;
                 $mfa_user_key = $item->user_key;
+                $lang = $show_lang ? $item->lang_desc : '';
+                $geo = $show_geo ? $item->country_desc : '';
+                $desc = $show_desc ? $item->qrcode_desc : '';
+                $op_sys = $show_os ? $item->os_desc : '';
 
                 ?>
                 <tr>
                     <td class="bordered middled centered"><?php echo esc_html( $creation ); ?></td>
-                    <td class="bordered middled centered"><?php echo esc_html( $code ); ?></td>
                     <td class="bordered middled centered"><?php echo sosidee_kses( $status_icon ); ?></td>
+                    <td class="bordered middled centered"><?php echo esc_html( $code ); ?></td>
                     <?php if ( $code_shared ) { ?>
                         <td class="bordered middled centered"><?php echo esc_html( $quid ); ?></td>
+                    <?php } ?>
+                    <?php if ( $show_desc ) { ?>
+                        <td class="bordered middled centered"><?php echo esc_html( $desc ); ?></td>
+                    <?php } ?>
+                    <?php if ( $show_lang ) { ?>
+                        <td class="bordered middled centered"><?php echo esc_html( $lang ); ?></td>
+                    <?php } ?>
+                    <?php if ( $show_geo ) { ?>
+                        <td class="bordered middled centered"><?php echo esc_html( $geo ); ?></td>
+                    <?php } ?>
+                    <?php if ( $show_os ) { ?>
+                        <td class="bordered middled centered"><?php echo esc_html( $op_sys ); ?></td>
                     <?php } ?>
                     <?php if ( $mfa_enabled ) { ?>
                         <td class="bordered middled centered"><?php echo esc_html( $mfa_user_key ); ?></td>
                     <?php } ?>
                     <td class="bordered middled centered"><?php $form->htmlCancel( $id ); ?></td>
                 </tr>
-            <?php }
-        } ?>
+            <?php } ?>
         </tbody>
     </table>
+<?php } ?>
 
     <?php
         $form->htmlLogId();

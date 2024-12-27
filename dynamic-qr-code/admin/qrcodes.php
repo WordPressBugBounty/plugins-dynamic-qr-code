@@ -1,10 +1,16 @@
 <?php
+defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
+
+use SOSIDEE_DYNAMIC_QRCODE\SRC\QrCode;
+use SOSIDEE_DYNAMIC_QRCODE\SRC\QrCodeSearchStatus;
+use SOSIDEE_DYNAMIC_QRCODE\SRC\Copy2CB;
 
 $plugin = \SOSIDEE_DYNAMIC_QRCODE\SosPlugin::instance();
 $form = $plugin->formSearchQrCode;
 $qrcodes = $form->qrcodes;
-$plugin->config->load(); // load current configuration
+$plugin->config->load(); // load the current configuration
 $code_shared = $plugin->config->sharedCodeEnabled->value;
+
 
 if ( $code_shared ) {
     $sw_desc = '45%';
@@ -12,9 +18,10 @@ if ( $code_shared ) {
     $sw_desc = '50%';
 }
 
-echo $plugin->help('list');
+echo $plugin->help('qr-codes-list');
+
+$plugin->htmlAdminPageTitle('QR-Code List');
 ?>
-<h1>QR-Code List</h1>
 
 <div class="wrap">
 
@@ -63,8 +70,9 @@ if ( is_array($qrcodes) && count($qrcodes) > 0 ) {
         $creation = $item->creation_string;
         $id = $item->qrcode_id;
         $url = $item->url_api;
-        $quid = \SOSIDEE_DYNAMIC_QRCODE\SRC\QrCode::getQID( $item->qrcode_id );
-        $copy = $plugin->getCopyApiUrl2CBIcon( $id, $code );
+        $quid = QrCode::getQID( $item->qrcode_id );
+        //$copy = $plugin->getCopyApiUrl2CBIcon( $id, $code );
+        $copy = Copy2CB::getApiUrlIcon( $id, $code );
     ?>
             <tr>
                 <td class="bordered middled centered"><?php echo sosidee_kses( $copy ); ?></td>
@@ -89,10 +97,10 @@ if ( is_array($qrcodes) && count($qrcodes) > 0 ) {
         <?php
         if ( is_array($qrcodes) && count($qrcodes) > 0 ) {
             echo 'Legend<br>State:';
-            $states = \SOSIDEE_DYNAMIC_QRCODE\SRC\QrCodeSearchStatus::getList();
+            $states = QrCodeSearchStatus::getList();
             foreach ( $states as $key => $value ) {
                 echo ' &nbsp; ';
-                $icon = \SOSIDEE_DYNAMIC_QRCODE\SRC\QrCodeSearchStatus::getStatusIcon( $key );
+                $icon = QrCodeSearchStatus::getStatusIcon( $key );
                 echo sosidee_kses( $icon . ' ' . $value );
             }
         }

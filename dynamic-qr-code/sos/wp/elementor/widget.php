@@ -1,6 +1,6 @@
 <?php
 namespace SOSIDEE_DYNAMIC_QRCODE\SOS\WP\Elementor;
-use \Elementor as NativeElementor;
+use Elementor as NativeElementor;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
 /**
@@ -25,6 +25,7 @@ abstract class Widget extends NativeElementor\Widget_Base
         public $title;
         public $icon;
         public $category;
+        public $keyword;
     //
 
     protected static function plugin() {
@@ -36,8 +37,7 @@ abstract class Widget extends NativeElementor\Widget_Base
      * Must be unique for each widget
 
      * Example:
-        public function setKey()
-        {
+        public function setKey() {
             $this->key = self::plugin()->key . '_unique_key';
         }
      */
@@ -55,6 +55,7 @@ abstract class Widget extends NativeElementor\Widget_Base
         $this->title = $this->key;
         $this->icon = 'eicon-star-o';
         $this->category = 'general';
+        $this->keyword = [];
     }
 
     public function get_name() {
@@ -71,6 +72,10 @@ abstract class Widget extends NativeElementor\Widget_Base
 
     public function get_categories() {
         return is_array($this->category) ? $this->category : [ $this->category ];
+    }
+
+    public function get_keywords() {
+        return is_array($this->keyword) ? $this->keyword : [ $this->keyword ];
     }
 
     /**

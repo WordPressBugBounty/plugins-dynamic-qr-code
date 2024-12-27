@@ -16,7 +16,7 @@ class DotW
         }
     }
 
-    public static function getList($caption = false) {
+    public static function getList( $caption = false ) {
         $ret = array();
 
         if ($caption !== false) {

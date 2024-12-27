@@ -8,6 +8,9 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
  */
 class WpColumn
 {
+
+    use TDateTime;
+
     protected $parent; //name
 
     public $name;
@@ -61,7 +64,7 @@ class WpColumn
         if ( is_null($value) && $this->nullable ) {
             return null;
         } else {
-            return Db::getDatetimeAsString( $value, $quoted );
+            return self::getDatetimeAsString( $value, $quoted );
         }
     }
 
@@ -69,7 +72,7 @@ class WpColumn
         if ( is_null($value) && $this->nullable ) {
             return null;
         } else {
-            return Db::getDatetimeFromString( $value );
+            return self::getDatetimeFromString( $value );
         }
     }
 
@@ -77,7 +80,7 @@ class WpColumn
         if ( is_null($value) && $this->nullable ) {
             return null;
         } else {
-            return Db::getTimeAsString( $value, $quoted );
+            return self::getTimeAsString( $value, $quoted );
         }
     }
 
@@ -85,12 +88,17 @@ class WpColumn
         if ( is_null($value) && $this->nullable ) {
             return null;
         } else {
-            return Db::getTimeFromString( $value );
+            return self::getTimeFromString( $value );
         }
     }
 
     public function setDefaultValue( $value ) {
         $this->defaultValue = $value;
+        return $this;
+    }
+
+    public function setNullable( $value ) {
+        $this->nullable = $value;
         return $this;
     }
 

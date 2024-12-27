@@ -1003,7 +1003,7 @@ class QRimage {
         $imgW = $w + 2*$outerFrame;
         $imgH = $h + 2*$outerFrame;
 
-        $base_image =ImageCreate($imgW, $imgH);
+        $base_image = \ImageCreate($imgW, $imgH);
 
         // convert a hexadecimal color code into decimal format (red = 255 0 0, green = 0 255 0, blue = 0 0 255)
         $r1 = round((($fore_color & 0xFF0000) >> 16), 5);
@@ -1339,7 +1339,7 @@ class QRinputItem {
             return -1;
         }
     }
-};
+}
 
 //##########################################################################
 
@@ -2906,7 +2906,7 @@ class QRrsblock {
         $this->eccLength = $el;
         $this->ecc = $ecc;
     }
-};
+}
 
 //##########################################################################
 
@@ -2999,14 +2999,16 @@ class QRrawcode {
 
         if($this->count < $this->dataLength) {
             $row = $this->count % $this->blocks;
-            $col = $this->count / $this->blocks;
+            //$col = $this->count / $this->blocks; //sostituzione per evitare il messaggio PHP Deprecated: Implicit conversion from float to int loses precision
+            $col = intval($this->count / $this->blocks);
             if($col >= $this->rsblocks[0]->dataLength) {
                 $row += $this->b1;
             }
             $ret = $this->rsblocks[$row]->data[$col];
         } else if($this->count < $this->dataLength + $this->eccLength) {
             $row = ($this->count - $this->dataLength) % $this->blocks;
-            $col = ($this->count - $this->dataLength) / $this->blocks;
+            //$col = ($this->count - $this->dataLength) / $this->blocks; //sostituzione per evitare il messaggio PHP Deprecated: Implicit conversion from float to int loses precision
+            $col = intval(($this->count - $this->dataLength) / $this->blocks);
             $ret = $this->rsblocks[$row]->ecc[$col];
         } else {
             return 0;
@@ -3269,10 +3271,11 @@ class FrameFiller {
         return array('x'=>$x, 'y'=>$y);
     }
 
-} ;
+}
 
 //##########################################################################
 
+#[\AllowDynamicProperties]
 class QRencode {
 
     public $casesensitive = true;

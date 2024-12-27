@@ -12,11 +12,11 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
  */
 class Script
 {
-    use Property
-	{
-        Property::__get as __getProp;
-        Property::__set as __setProp;
-	}
+    use TProperty
+    {
+        TProperty::__get as __getProp;
+        TProperty::__set as __setProp;
+    }
 
     private $dependency;
     private $pages;

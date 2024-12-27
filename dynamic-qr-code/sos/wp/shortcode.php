@@ -24,13 +24,13 @@ class ShortCode
 
         if ( sosidee_is_rest() ) {
             // do not sanitize if it's a block editor api call (in this case is_admin() always returns false and can't be used)
-            return;
+            return null;
         }
 
         if ( !$this->isTrueCall ) {
             // prevent other plugins to call the $callback function
             //@TODO: unless the call comes from Elementor (otherwise its display doesn't work...)
-            return;
+            return null;
         }
 
         $args = array();

@@ -2,6 +2,11 @@
 namespace SOSIDEE_DYNAMIC_QRCODE\SOS\WP;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
+//TEMPORARY: cache_users() not loaded with WP 6.1
+if ( ! function_exists( 'cache_users' ) ) {
+    require_once realpath(ABSPATH . WPINC . DIRECTORY_SEPARATOR . 'pluggable.php');
+}
+
 class User
 {
 

@@ -70,7 +70,44 @@ if ( !function_exists('sosidee_strcasecmp') ) {
 
 if ( !function_exists('sosidee_str_remove') ) {
     function sosidee_str_remove( $search, $subject ) {
-        return str_replace($search, '', $subject);
+        if ( is_array($search) ) {
+            $blank = array_fill(0, count($search), '');
+        } else {
+            $blank = '';
+        }
+        return str_replace($search, $blank, $subject);
+    }
+}
+
+if ( ! function_exists( 'sosidee_check_path_separator' ) ) {
+    function sosidee_check_path_separator( $path ) {
+        return str_replace('/', DIRECTORY_SEPARATOR, $path);
+    }
+}
+
+if ( ! function_exists( 'sosidee_check_folder_separator' ) ) {
+    function sosidee_check_folder_separator( $path ) {
+        return rtrim( sosidee_check_path_separator($path) , DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    }
+}
+
+if ( ! function_exists( 'sosidee_append_url_separator' ) ) {
+    function sosidee_append_url_separator( $url ) {
+        return rtrim( $url , '/') . '/';
+    }
+}
+
+if ( ! function_exists( 'sosidee_upload_dir' ) ) {
+    function sosidee_upload_dir() {
+        $ret = false;
+        $root = wp_upload_dir();
+        if ( $root['error'] === false && isset($root['baseurl']) && isset($root['basedir']) ) {
+            $ret = [
+                 'path' => sosidee_check_folder_separator( $root['basedir'] )
+                ,'url' => sosidee_append_url_separator( $root['baseurl'] )
+            ];
+        }
+        return $ret;
     }
 }
 
@@ -85,12 +122,12 @@ if ( ! function_exists( 'sosidee_is_login_page' ) ) {
 }
 
 if ( ! function_exists( 'sosidee_get_query_var' ) ) {
-    function sosidee_get_query_var($var, $mixed = null) {
+    function sosidee_get_query_var($var, $def_value = null) {
         $ret = get_query_var($var, null);
         if ( is_null($ret) && isset( $_GET[$var] ) ) {
             $ret = sanitize_text_field( $_GET[$var] );
         } else {
-            $ret = $mixed;
+            $ret = $def_value;
         }
         return $ret;
     }
@@ -105,21 +142,30 @@ if ( ! function_exists( 'sosidee_json_decode' ) ) {
 
 if ( ! function_exists( 'sosidee_is_base64' ) ) {
     function sosidee_is_base64($data) {
-        return base64_encode(base64_decode($data, true)) === $data;
+        if ( ( $str = base64_decode($data, true) ) === false) {
+            return false;
+        }
+        if ( in_array(mb_detect_encoding($str), ['UTF-8', 'ASCII']) ) {
+            return true;
+        } else {
+            return false;
+        }
     }
 }
 
 if ( ! function_exists( 'sosidee_dirname' ) ) {
     function sosidee_dirname( $path, $levels = 1 ) {
+        $ret = '';
         if ( version_compare( phpversion(), '7.0.0') >= 0 ) {
-            return dirname($path, $levels);
+            $ret = dirname($path, $levels);
         } else {
             if ($levels > 1){
-                return dirname( sosidee_dirname( $path, --$levels ) );
+                $ret = dirname( sosidee_dirname( $path, --$levels ) );
             }else{
-                return dirname( $path );
+                $ret = dirname( $path );
             }
         }
+        return $ret; //str_replace('/', DIRECTORY_SEPARATOR, $ret);
     }
 }
 if ( ! function_exists('sosidee_log') && function_exists( 'sosidee_dirname' ) ) {
@@ -148,9 +194,13 @@ if ( ! function_exists('sosidee_log') && function_exists( 'sosidee_dirname' ) ) 
                         }
                     }
                     $plug = substr($path, $k);
-                    $m = strpos($plug, '/') + $k;
+                    $m = strpos($plug, '/');
                     if ( $m !== false ) {
+                        $plug = substr($path, $k, $m);
+                        /*
+                        $m += $k;
                         $plug = substr($path, $k, $m - $k);
+                        */
                     }
                 }
             }
@@ -172,6 +222,23 @@ if ( ! function_exists( 'sosidee_is_rest' ) ) {
             return true;
         }
         return strpos( $_SERVER['REQUEST_URI'], trailingslashit( rest_get_url_prefix() ) ) !== false;
+    }
+}
+
+if ( ! function_exists( 'sosidee_is_local' ) ) {
+    function sosidee_is_local() {
+        $ret = false;
+        if (substr($_SERVER['REMOTE_ADDR'], 0, 4) == '127.' || $_SERVER['REMOTE_ADDR'] == '::1') {
+            $ret = true;
+        }
+        return $ret;
+    }
+}
+
+if ( ! function_exists( 'sosidee_is_dev' ) ) {
+    function sosidee_is_dev() {
+        $file = realpath(ABSPATH) . DIRECTORY_SEPARATOR . 'sos_identifier.txt';
+        return file_exists($file) && trim(file_get_contents($file)) === 'SOS-DEV';
     }
 }
 
@@ -246,25 +313,26 @@ if ( ! function_exists( 'sosidee_kses' ) ) {
     function sosidee_kses( $value ) {
 
         $tags = [
-              'a', 'b', 'br', 'button', 'caption', 'code', 'col', 'colgroup'
-            , 'data', 'div', 'em', 'form'
+              'a', 'audio', 'b', 'br', 'button', 'caption', 'code', 'col', 'colgroup'
+            , 'data', 'datalist', 'div', 'em', 'form'
             , 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'
-            , 'hr', 'i', 'img', 'input'
+            , 'hr', 'i', 'iframe', 'img', 'input'
             , 'label', 'legend', 'li', 'nav'
             , 'ol', 'optgroup', 'option'
-            , 'p', 'pre', 'script', 'select', 'span', 'strong'
+            , 'p', 'pre', 'script', 'section', 'select', 'span', 'strong', 'style'
             , 'table', 'tbody', 'td', 'textarea', 'th', 'thead', 'title', 'tr'
-            , 'ul'
+            , 'ul', 'video'
         ];
 
         $attrs = [
               'accept', 'action', 'alt', 'checked', 'class', 'cols', 'colspan'
             , 'disabled', 'download', 'enctype'
             , 'for', 'form', 'height', 'href', 'id'
-            , 'label', 'max', 'maxlength', 'method', 'min', 'name'
+            , 'label', 'lang', 'max', 'maxlength', 'method', 'min', 'name'
             , 'onblur', 'onchange', 'onclick', 'onfocus', 'onload', 'onsubmit'
-            , 'readonly', 'rows', 'rowspan', 'scope', 'selected', 'size', 'span', 'src', 'step', 'style'
-            , 'target', 'title', 'type', 'value', 'width', 'wrap'
+            , 'readonly', 'rel', 'rows', 'rowspan'
+            , 'scope', 'selected', 'size', 'span', 'src', 'step', 'style'
+            , 'usemap', 'target', 'title', 'type', 'value', 'width', 'wrap'
         ];
 
         $allowed_htmls = wp_kses_allowed_html();

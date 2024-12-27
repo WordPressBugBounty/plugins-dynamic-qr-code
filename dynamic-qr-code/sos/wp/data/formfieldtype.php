@@ -15,4 +15,6 @@ class FormFieldType
     const HIDDEN = 9;
     const COMBOBOX = 10;
     const FILE = 11;
+    const CHECKLIST = 12;
+    const RADIO = 13;
 }

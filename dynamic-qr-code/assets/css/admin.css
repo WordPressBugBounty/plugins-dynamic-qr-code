@@ -1,9 +1,16 @@
 table.sqc {
     border-collapse: collapse;
 }
-table.bordered, th.bordered, td.bordered {
+table.bordered th, table.bordered td {
     border: 1px solid gray;
 }
+table.topped th, table.topped td {
+    vertical-align: top;
+}
+table th.bottomed, table td.bottomed {
+    vertical-align: bottom;
+}
+
 table.rounded4 {
     border-collapse: separate;
     border-radius: 4px;
@@ -15,15 +22,15 @@ th.righted, td.righted {
 th.centered, td.centered {
     text-align: center;
 }
+th.topped, td.topped {
+    vertical-align: top;
+}
 th.middled, td.middled {
     vertical-align: middle;
 }
 th.medium, td.medium {
     text-align: center;
     vertical-align: middle;
-}
-th.italiced, td.italiced {
-    font-style: italic;
 }
 table.pad2p th, table.pad2p td {
     padding: 2px;
@@ -49,3 +56,16 @@ td.note ul {
 td.note ul li {
     margin: 0;
 }
+
+.italiced {
+    font-style: italic;
+}
+.bolded {
+    font-weight: bold;
+}
+.fs90pc {
+    font-size: 90%;
+}
+
+/* to avoid flickering on mouseover (google charts bug, unfixed...) */
+.google-visualization-tooltip { pointer-events: none }

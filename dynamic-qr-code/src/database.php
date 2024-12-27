@@ -2,7 +2,7 @@
 namespace SOSIDEE_DYNAMIC_QRCODE\SRC;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
-use \SOSIDEE_DYNAMIC_QRCODE\SOS\WP\DATA as DATA;
+use SOSIDEE_DYNAMIC_QRCODE\SOS\WP\DATA as DATA;
 
 class Database
 {
@@ -13,54 +13,60 @@ class Database
         $this->native = new DATA\WpDatabase('sos_dqc_');
 
         // TABLE QR-CODES
-        $tab1 = $this->native->addTable("qrcodes");
-        $tab1->addID("qrcode_id");
-        $tab1->addBoolean("disabled")->setDefaultValue(false);
-        $tab1->addVarChar("code", 255);
-        $tab1->addVarChar("description", 255);
-        $tab1->addVarChar("url_redirect", 255);
-        $tab1->addVarChar("url_inactive", 255);
-        $tab1->addVarChar("url_expired", 255);
-        $fldDateFrom = $tab1->addDateTime("date_from");
+        $tabQC = $this->native->addTable("qrcodes");
+        $tabQC->addID("qrcode_id");
+        $tabQC->addBoolean("disabled")->setDefaultValue(false);
+        $tabQC->addVarChar("code", 255);
+        $tabQC->addVarChar("description", 255);
+        $tabQC->addVarChar("url_redirect", 255);
+        $tabQC->addVarChar("url_inactive", 255);
+        $tabQC->addVarChar("url_expired", 255);
+        $fldDateFrom = $tabQC->addDateTime("date_from");
         $fldDateFrom->nullable = true;
-        $fldDateUpto = $tab1->addDateTime("date_to");
+        $fldDateUpto = $tabQC->addDateTime("date_to");
         $fldDateUpto->nullable = true;
-        $fldTimeFrom = $tab1->addTime("time_from");
+        $fldTimeFrom = $tabQC->addTime("time_from");
         $fldTimeFrom->nullable = true;
-        $fldTimeUpto = $tab1->addTime("time_to");
+        $fldTimeUpto = $tabQC->addTime("time_to");
         $fldTimeUpto->nullable = true;
-        $tab1->addTinyInteger("dotw");
-        $tab1->addBoolean("priority")->setDefaultValue(false);
-        $tab1->addInteger("max_scan_tot");
-        $tab1->addVarChar("url_finished", 255);
-        $tab1->addVarChar("cypher", 255);
-        $tab1->addVarChar("url_cypher", 255);
-        $tab1->addBoolean("only_mfa")->setDefaultValue(false);
-        $tab1->addTinyInteger("device_os")->setDefaultValue(0);
-        $tab1->addVarChar("device_lang", 2)->setDefaultValue('');
-        $tab1->addVarChar("img_forecolor", 16)->setDefaultValue(QRcode::IMAGE_FOREGROUND);
-        $tab1->addVarChar("img_backcolor", 16)->setDefaultValue(QRcode::IMAGE_BACKGROUND);
-        $tab1->addDateTime("creation")->setDefaultValueAsCurrentDateTime();
-        $tab1->addBoolean("cancelled")->setDefaultValue(false);
+        $tabQC->addTinyInteger("dotw");
+        $tabQC->addBoolean("priority")->setDefaultValue(false);
+        $tabQC->addInteger("max_scan_tot");
+        $tabQC->addVarChar("url_finished", 255);
+        $tabQC->addVarChar("cypher", 255);
+        $tabQC->addVarChar("url_cypher", 255);
+        $tabQC->addBoolean("only_mfa")->setDefaultValue(false);
+        $tabQC->addTinyInteger("device_os")->setDefaultValue(0);
+        $tabQC->addVarChar("device_lang", 2)->setDefaultValue('');
+        $tabQC->addVarChar("img_forecolor", 16)->setDefaultValue(QRcode::IMAGE_FOREGROUND);
+        $tabQC->addVarChar("img_backcolor", 16)->setDefaultValue(QRcode::IMAGE_BACKGROUND);
+        $tabQC->addDateTime("creation")->setDefaultValueAsCurrentDateTime();
+        $tabQC->addBoolean("cancelled")->setDefaultValue(false);
 
         // TABLE LOGS
-        $tab2 = $this->native->addTable("logs");
-        $tab2->addID("log_id");
-        $tab2->addTinyInteger("status");
-        $tab2->addVarChar("code", 255);
-        $tab2->addInteger("qrcode_id");
-        $tab2->addVarChar("user_key", 255)->setDefaultValue('');
-        $tab2->addVarChar("event_id", 255)->setDefaultValue('');
-        $tab2->addDateTime("creation")->setDefaultValueAsCurrentDateTime();
-        $tab2->addBoolean("cancelled")->setDefaultValue(false);
+        $tabLog = $this->native->addTable("logs");
+        $tabLog->addID("log_id");
+        $tabLog->addTinyInteger("status");
+        $tabLog->addVarChar("code", 255);
+        $tabLog->addInteger("qrcode_id");
+        $tabLog->addVarChar("user_key", 255)->setDefaultValue('');
+        $tabLog->addVarChar("event_id", 255)->setDefaultValue('');
+        $tabLog->addTinyInteger("op_sys")->setDefaultValue(OS::UNKNOWN); //operative system
+        $tabLog->addTinyInteger("dev_type")->setDefaultValue(DeviceType::UNKNOWN);
+        $tabLog->addVarChar("lang", 2)->setDefaultValue('');
+        $tabLog->addVarChar("country", 2)->setDefaultValue('');
+        $tabLog->addVarChar("region", 255)->setDefaultValue('');
+        $tabLog->addVarChar("city", 255)->setDefaultValue('');
+        $tabLog->addDateTime("creation")->setDefaultValueAsCurrentDateTime();
+        $tabLog->addBoolean("cancelled")->setDefaultValue(false);
 
         // TABLE ONE-TIME KEYS
-        $tab3 = $this->native->addTable("otkeys");
-        $tab3->addID("otk_id");
-        $tab3->addInteger("qrcode_id");
-        $tab3->addVarChar("code", 255);
-        $tab3->addInteger("tally")->setDefaultValue(0);
-        $tab3->addDateTime("creation")->setDefaultValueAsCurrentDateTime();
+        $tabOtk = $this->native->addTable("otkeys");
+        $tabOtk->addID("otk_id");
+        $tabOtk->addInteger("qrcode_id");
+        $tabOtk->addVarChar("code", 255);
+        $tabOtk->addInteger("tally")->setDefaultValue(0);
+        $tabOtk->addDateTime("creation")->setDefaultValueAsCurrentDateTime();
 
         $this->native->create();
     }
@@ -101,11 +107,11 @@ class Database
         }
     }
 
-    private function loadQrCodeByCode( $field, $value ) {
+    private function loadQrCodeByField($field, $value ) {
         $table = $this->native->qrcodes;
 
         $results = $table->select( [
-            $field => $value
+             $field => $value
             ,'cancelled' => false
         ] );
 
@@ -120,14 +126,14 @@ class Database
         $table = $this->native->qrcodes;
         $field = $table->code->name;
 
-        return $this->loadQrCodeByCode( $field, $code );
+        return $this->loadQrCodeByField( $field, $code );
     }
 
     public function loadQrCodeByCypher( $code ) {
         $table = $this->native->qrcodes;
         $field = $table->cypher->name;
 
-        $results = $this->loadQrCodeByCode( $field, $code );
+        $results = $this->loadQrCodeByField( $field, $code );
         if ( is_array($results) && count($results) == 1 ) {
             return $results[0];
         } else {
@@ -149,13 +155,28 @@ class Database
         return $table->update( [ 'cancelled' => true ], [ 'qrcode_id' => $id ] );
     }
 
-    public function loadQrCodeList() {
+    public function loadQrCodeList( $include_cancelled = false ) {
         $table = $this->native->qrcodes;
 
-        $filters = [ $table->cancelled->name => false ];
+        if ( !$include_cancelled ) {
+            $filters = [ $table->cancelled->name => false ];
+        } else {
+            $filters = [];
+        }
         $orders = ['description'];
 
-        return $table->distinct( ['qrcode_id', 'description'], $filters, $orders );
+        return $table->select( $filters, $orders );
+    }
+
+    public function loadQrKeyList() {
+        $table = $this->native->qrcodes;
+
+        $filters = [
+            $table->cancelled->name => false
+        ];
+        $orders = ['code'];
+
+        return $table->distinct( ['code'], $filters, $orders );
     }
 
     public function insertOTKey( $data ) {
@@ -189,10 +210,19 @@ class Database
         return $table->update( $data, $filters );
     }
 
-    public function countActiveLogs( $code ) {
+    public function countActiveLogsById( $qrcode_id ) {
         $table = $this->native->logs;
         $filters = [
-             'code' => $code
+             'qrcode_id' => $qrcode_id
+            ,$table->cancelled->name => false
+        ];
+        return $table->count( $filters );
+    }
+
+    public function countActiveLogsByCode( $qrcode_code ) {
+        $table = $this->native->logs;
+        $filters = [
+             'code' => $qrcode_code
             ,$table->cancelled->name => false
         ];
         return $table->count( $filters );
@@ -212,7 +242,19 @@ class Database
         }
 
         if ( array_key_exists('status', $filters) && $filters['status'] != LogStatus::NONE ) {
-            $where[ $table->status->name ] = $filters['status'];
+            if ( !is_array($filters['status']) || count($filters['status']) > 0) {
+                $where[ $table->status->name ] = $filters['status'];
+            }
+        }
+
+        if ( array_key_exists('op_sys', $filters) && $filters['op_sys'] != OS::UNKNOWN ) {
+            if ( !is_array($filters['op_sys']) || count($filters['op_sys']) > 0) {
+                $where[ $table->op_sys->name ] = $filters['op_sys'];
+            }
+        }
+
+        if ( array_key_exists('dev_type', $filters) && $filters['dev_type'] != DeviceType::UNKNOWN ) {
+            $where[ $table->dev_type->name ] = $filters['dev_type'];
         }
 
         if ( array_key_exists('from', $filters) && $filters['from'] instanceof \DateTime ) {

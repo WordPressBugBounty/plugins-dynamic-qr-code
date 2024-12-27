@@ -6,10 +6,12 @@ class FormButton
 {
     const STYLE_SUCCESS = 'color: #ffffff; background-color: #5cb85c; border-color: #4cae4c;';
     const STYLE_DANGER = 'color: #ffffff; background-color: #d9534f; border-color: #d43f3a;';
+    const STYLE_WARNING = 'color: #ffffff; background-color: #f0ad4e; border-color: #f0ad4e;';
+    const STYLE_SECONDARY = 'color: #ffffff; background-color: #6c757d; border-color: #6c757d';
 
     private static function get( $type, $name, $value, $style, $class, $onclick ) {
         return FormTag::get( 'input', [
-                'type' => $type
+                 'type' => $type
                 ,'id' => $name
                 ,'name' => $name
                 ,'value' => $value
@@ -20,7 +22,6 @@ class FormButton
             ]
         );
     }
-
 
     public static function getSubmit( $name, $value = 'ok', $style = '', $class = '', $onclick = null ) {
         $style = !is_null($style) ? FormTag::getStyle($style,'min-width: 90px; cursor: pointer;') : null;
@@ -39,7 +40,7 @@ class FormButton
     }
 
     public static function htmlLink( $value = 'ok', $style = '', $class = '', $onclick = null ) {
-        echo sosidee_kses( self::getButton( null, $value, $style, $class, $onclick ) );
+        echo sosidee_kses( self::get( 'button', null, $value, $style, $class, $onclick ) );
     }
 
 }

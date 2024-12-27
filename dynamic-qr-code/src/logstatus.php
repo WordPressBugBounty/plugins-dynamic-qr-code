@@ -20,17 +20,17 @@ class LogStatus
         }
         $ret[self::ACTIVE] = self::getDescription(self::ACTIVE);
         $ret[self::INACTIVE] = self::getDescription(self::INACTIVE);
-        $ret[self::DISABLED] = self::getDescription(self::DISABLED);
         $ret[self::EXPIRED] = self::getDescription(self::EXPIRED);
         $ret[self::FINISHED] = self::getDescription(self::FINISHED);
+        $ret[self::DISABLED] = self::getDescription(self::DISABLED);
         $ret[self::ERROR] = self::getDescription(self::ERROR);
 
         return $ret;
     }
 
 
-    public static function getDescription( $value ) {
-        $ret = '';
+    public static function getDescription( $value, $default = '' ) {
+        $ret = $default;
         switch ($value) {
             case self::ACTIVE:
                 $ret = 'active';

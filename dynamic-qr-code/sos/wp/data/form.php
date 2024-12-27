@@ -1,19 +1,18 @@
 <?php
 namespace SOSIDEE_DYNAMIC_QRCODE\SOS\WP\DATA;
-use \SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP;
+use SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP;
 
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
 class Form
 {
-    use SOS_WP\Message;
-    use SOS_WP\Translation;
+    use SOS_WP\TBase;
+    use SOS_WP\TMessage;
+    use SOS_WP\TTranslation;
 
     private $_nonce_name;
     private $_nonce_action;
     private $_actions;
-
-    protected $_plugin;
 
     public $_name;
     public $_callback;
@@ -49,15 +48,13 @@ class Form
             add_action( 'the_post', array($this,'sanitize') );
         }
 
-        $this->_plugin = \SOSIDEE_DYNAMIC_QRCODE\SosPlugin::instance();
-
     }
 
     private function addField( $type, $name, $value ) {
         $id = "{$this->_name}_$name";
         $ret = new FormField( $type, $id, $value );
         $ret->name = $name;
-        //$this->{$name} = $ret; not necessary (why?)
+        //$this->{$name} = $ret; not necessary (but don't remember why)
         $this->_fields[] = $ret;
         return $ret;
     }
@@ -90,6 +87,9 @@ class Form
     public function addCheckBox( $name, $value = false ) {
         return $this->addField( FormFieldType::CHECK, $name, $value );
     }
+    public function addRadio( $name, $value = false ) {
+        return $this->addField( FormFieldType::RADIO, $name, $value );
+    }
     public function addSelect( $name, $value = 0 ) {
         return $this->addField( FormFieldType::SELECT, $name, $value );
     }
@@ -99,6 +99,9 @@ class Form
     public function addFilePicker( $name ) {
         $this->_encType = 'multipart/form-data';
         return $this->addField( FormFieldType::FILE, $name, null );
+    }
+    public function addCheckList( $name, $value = [] ) {
+        return $this->addField( FormFieldType::CHECKLIST, $name, $value );
     }
 
     private function getActionName( $action ) {
@@ -160,7 +163,7 @@ class Form
 
     protected function isCached() {
         $ret = false;
-        for ($n=0; $n<count($this->_fields); $n++) {
+        for ( $n=0; $n<count($this->_fields); $n++ ) {
             if ($this->_fields[$n]->cached) {
                 $ret = true;
                 break;
@@ -186,9 +189,17 @@ class Form
         $continue = !is_admin();
         if ( !$continue ) {
             for ( $n=0; $n<count($this->_pages); $n++ ) {
-                if ( $this->_pages[$n]->isCurrent() ) {
-                    $continue = true;
-                    break;
+                $page = $this->_pages[$n];
+                if ( $page instanceof \SOSIDEE_DYNAMIC_QRCODE\SOS\WP\BE\Page ) {
+                    if ( $this->_pages[$n]->isCurrent() ) {
+                        $continue = true;
+                        break;
+                    }
+                } else {
+                    if ( !is_string($page) ) {
+                        $page = print_r($page, true);
+                    }
+                    sosidee_log("Form.sanitize(): uninstantiated page ('{$page}'). Maybe it was not added to menu.");
                 }
             }
         }
@@ -221,6 +232,14 @@ class Form
                             break;
                         case FormFieldType::CHECK:
                             $field->value = isset( $_POST[$field->name] );
+                            break;
+                        case FormFieldType::CHECKLIST:
+                            $values = sanitize_text_field( $_POST[$field->name] );
+                            if ( !empty($values) ) {
+                                $field->value = explode(';', $values);
+                            } else {
+                                $field->value = [];
+                            }
                             break;
                         default:
                             $field->value = sanitize_text_field( wp_unslash( $_POST[$field->name] ) );
@@ -275,7 +294,7 @@ class Form
 
     public function htmlClose() {
         echo sosidee_kses( $this->getClose() );
-;    }
+    }
 
     public function addToPage() {
         $pages = func_get_args();
@@ -289,7 +308,8 @@ class Form
     }
 
     private function getCacheKey() {
-        return strtolower( str_replace("-", "_", "{$this->_plugin->key}_{$this->_name}_cache") );
+        $key = self::plugin()->key . "_{$this->_name}_cache";
+        return strtolower( str_replace("-", "_", $key) );
     }
 
     public function saveCache() {

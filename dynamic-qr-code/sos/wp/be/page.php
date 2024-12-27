@@ -1,6 +1,6 @@
 <?php
 namespace SOSIDEE_DYNAMIC_QRCODE\SOS\WP\BE;
-use \SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP;
+use SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
 /**
@@ -16,10 +16,10 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
  */
 class Page
 {
-    use SOS_WP\Property {
-        SOS_WP\Property::__set as __setProp;
+    use SOS_WP\TProperty {
+        SOS_WP\TProperty::__set as __setProp;
     }
-    use SOS_WP\Translation;
+    use SOS_WP\TTranslation;
 
     private static $screen = null;
 
@@ -31,6 +31,7 @@ class Page
     public $menuType;
     public $menuColor;
     public $hook;
+    public $menuHidden;
 
     public function __construct($path, $name) {
         $this->_addProperty('path', '');
@@ -38,14 +39,14 @@ class Page
 
         $this->key = '';
         $this->url = '';
-        $this->name = '';
         $this->role = 'manage_options';
         $this->title = '';
         $this->menuType = MenuType::CUSTOM;
         $this->menuColor = false;
+        $this->menuHidden = false;
         $this->hook = false;
 
-        if ($name == '') {
+        if ( $name == '' ) {
             $name = sosidee_str_remove('.php', basename( $path) );
         }
         $this->name = $name;

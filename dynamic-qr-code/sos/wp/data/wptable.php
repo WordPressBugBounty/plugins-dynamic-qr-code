@@ -1,11 +1,11 @@
 <?php
 namespace SOSIDEE_DYNAMIC_QRCODE\SOS\WP\DATA;
-use \SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP_ROOT;
+use SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP_ROOT;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
 class WpTable
 {
-    use SOS_WP_ROOT\Property;
+    use SOS_WP_ROOT\TProperty;
 
     protected $columns;
     protected $primaryKey;
@@ -63,6 +63,7 @@ class WpTable
     public function addTime($name) {
         return $this->addColumn($name, WpColumnType::TIME);
     }
+
 
     protected function getColumnByName($name) {
         $ret = false;
@@ -151,13 +152,14 @@ class WpTable
         $error = false;
         $clauses = array();
         $values = array();
+        $filter_in = false;
         foreach ( $filters as $key => $value ) {
             $clauses[] = array();
             $values[] = array();
             $index = count( $clauses ) - 1;
 
             $name = $key;
-            $operator = '=';
+            $operator = !is_array($value) ? '=' : ' IN ';
             $p1 = strrpos($key, '[');
             if ( $p1 !== false ) {
                 $name = trim( substr($key, 0, $p1) );
@@ -174,9 +176,18 @@ class WpTable
                 } else if ( $column->type == WpColumnType::TIME  ) {
                         $values[$index] = $column->getTimeValueAsString( $value );
                 } else {
-                    $values[$index] = $value;
+                    if ( !is_array($value) ) {
+                        $values[$index] = $value;
+                    } else {
+                        $values[$index] = '{_(' . implode(',', $value) . ')_}';
+                        $filter_in = true;
+                    }
                 }
-                $clauses[$index]['format'] = $column->getQueryFormat();
+                if ( !is_array($value) ) {
+                    $clauses[$index]['format'] = $column->getQueryFormat();
+                } else {
+                    $clauses[$index]['format'] = '%s';
+                }
             } else {
                 $error = true;
                 sosidee_log("WpTable.querySelect() :: getColumnByName($name) returned false for table {$this->name}.");
@@ -213,6 +224,9 @@ class WpTable
 
             if ( count($values) > 0) {
                 $query = $wpdb->prepare($sql, $values);
+                if ( $filter_in ) {
+                    $query = str_replace([" IN '{_(", ")_}'"], [" IN (", ")"], $query);
+                }
             } else {
                 $query = $sql;
             }
@@ -229,7 +243,7 @@ class WpTable
                                 if ( $wpColumn !== false ) {
                                     $values[$name] = $wpColumn->getNativeValueFromString( $value );
                                 } else {
-                                    sosidee_log( "WpTable.querySelect() :: {$this->name}.getColumnByName({$name}) returned false." );
+                                    sosidee_log( "WpTable.querySelect(): returned column {$name} not found in the definition of table {$this->name}." );
                                 }
                             }
                             $columns = json_decode( json_encode($columns), false );

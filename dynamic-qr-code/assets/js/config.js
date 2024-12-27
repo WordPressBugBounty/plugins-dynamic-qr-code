@@ -59,8 +59,8 @@ function jsDynSetCypher(ctrl) {
     if ( value < jsDynCypherObj.min ) {
         value = jsDynCypherObj.min;
     }
-    let value64 = jsDynGetB64Len(value) + jsDynCypherObj.base; // manually inserted values can be freak
-    if ( ctrl.value != value64 ) {
+    let value64 = jsDynGetB64Len(value) + jsDynCypherObj.base; // manually inserted values could be odd
+    if ( ctrl.value !== value64 ) {
         ctrl.value = value64;
     }
     hidDynCypher.value = value;

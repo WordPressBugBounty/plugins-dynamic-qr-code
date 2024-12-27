@@ -2,8 +2,9 @@
 namespace SOSIDEE_DYNAMIC_QRCODE\SRC\FORM;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
-use \SOSIDEE_DYNAMIC_QRCODE\SRC as SRC;
-use \SOSIDEE_DYNAMIC_QRCODE\SOS\WP\DATA as DATA;
+use SOSIDEE_DYNAMIC_QRCODE\SRC as SRC;
+use SOSIDEE_DYNAMIC_QRCODE\SOS\WP\DATA as DATA;
+use SOSIDEE_DYNAMIC_QRCODE\SOS\Locale;
 
 class QrCodeEdit extends Base
 {
@@ -30,6 +31,7 @@ class QrCodeEdit extends Base
     private $img_forecolor;
     private $img_backcolor;
 
+    private $code_old;
     public $code;
 
     public $cypher;
@@ -55,18 +57,20 @@ class QrCodeEdit extends Base
         $this->priority = $this->addCheckBox('priority', false);
         $this->max_scan_tot = $this->addNumericBox('max_scan_tot');
         $this->url_finished = $this->addComboBox('url_finished', '');
-        $description = self::getDescription("mandatory field", true);
+        $description = self::getDescription('mandatory field', true);
         $this->description->description = $description;
         $this->code->description = $description;
         $this->url_redirect->description = $description;
         $this->cypher = $this->addHidden('cypher', '');
         $this->url_cypher = $this->addComboBox('url_cypher', '');
         $this->only_mfa = $this->addCheckBox('only_mfa', false);
-        $this->device_os = $this->addSelect('device_os', SRC\OS::NONE);
+        $this->device_os = $this->addSelect('device_os', SRC\OS::UNKNOWN);
         $this->device_lang = $this->addSelect('device_lang', '');
 
-        $this->img_forecolor = $this->addColorPicker('img_forecolor', $this->_plugin->config->imgForeColor->getValue() );
-        $this->img_backcolor = $this->addColorPicker('img_backcolor', $this->_plugin->config->imgBackColor->getValue() );
+        $this->img_forecolor = $this->addColorPicker('img_forecolor', self::plugin()->config->imgForeColor->getValue() );
+        $this->img_backcolor = $this->addColorPicker('img_backcolor', self::plugin()->config->imgBackColor->getValue() );
+
+        $this->code_old = $this->addHidden('code_old', '');
 
         $this->showCypher = false;
 
@@ -91,10 +95,10 @@ class QrCodeEdit extends Base
         $this->cypher->value = '';
         $this->url_cypher->value = '';
         $this->only_mfa->value = false;
-        $this->device_os->value = SRC\OS::NONE;
+        $this->device_os->value = SRC\OS::UNKNOWN;
         $this->device_lang->value = '';
-        $this->img_forecolor->value = $this->_plugin->config->imgForeColor->value;
-        $this->img_backcolor->value = $this->_plugin->config->imgBackColor->value;
+        $this->img_forecolor->value = self::plugin()->config->imgForeColor->value;
+        $this->img_backcolor->value = self::plugin()->config->imgBackColor->value;
 
         $this->showCypher = false;
     }
@@ -108,19 +112,23 @@ class QrCodeEdit extends Base
     public function htmlCode() {
         $this->code->html( ['maxlength' => 255] );
     }
+    public function htmlCodeOld() {
+        $this->code_old->value = $this->code->value;
+        $this->code_old->html();
+    }
     public function htmlDescription() {
         $this->description->html( ['maxlength' => 255] );
     }
     public function htmlUrlRedirect() {
-        $options = Base::getOptions();
+        $options = self::getUrlList();
         $this->url_redirect->html( [ 'options' => $options ] );
     }
     public function htmlUrlInactive() {
-        $options = Base::getOptions();
+        $options = self::getUrlList();
         $this->url_inactive->html( [ 'options' => $options ] );
     }
     public function htmlUrlExpired() {
-        $options = Base::getOptions();
+        $options = self::getUrlList();
         $this->url_expired->html( [ 'options' => $options ] );
     }
     public function htmlDateStart() {
@@ -152,12 +160,12 @@ class QrCodeEdit extends Base
         ]);
     }
     public function htmlUrlFinished() {
-        $options = Base::getOptions();
+        $options = $this->getUrlList();
         $this->url_finished->html( [ 'options' => $options ] );
     }
     public function htmlCurrentScan() {
         if ( $this->id->value > 0 && $this->code->value != '' ) {
-            $current = $this->_database->countActiveLogs( $this->code->value );
+            $current = self::database()->countActiveLogs( $this->code->value );
             if ( $current !== false ) {
                 DATA\FormTag::html( 'span', [
                      'content' => $current
@@ -172,7 +180,7 @@ class QrCodeEdit extends Base
         $this->device_os->html( [ 'options' => $options ] );
     }
     public function htmlDeviceLang() {
-        $options = $this->getlanguageList('- any -');
+        $options = Locale::getLanguages('- any -');
         $this->device_lang->html( [ 'options' => $options ] );
     }
     public function htmlImgForeColor() {
@@ -187,11 +195,11 @@ class QrCodeEdit extends Base
     }
     public function htmlUrlCypher() {
         if ( $this->cypher->value != '' ) {
-            $options = Base::getOptions();
+            $options = $this->getUrlList();
             $this->url_cypher->html( [ 'options' => $options ] );
         } else {
             DATA\FormTag::html( 'label', [
-                'html' => ' &nbsp; - - - '
+                 'html' => ' &nbsp; - - - '
                 ,'style' => 'padding:2px 4px 2px 4px;margin-left:1em;'
             ]);
         }
@@ -201,7 +209,7 @@ class QrCodeEdit extends Base
         $id = $this->id->value;
         if ( $id > 0 ) {
             DATA\FormTag::html( 'span', [
-                'content' => "Q-{$id}"
+                 'content' => "Q-{$id}"
                 ,'style' => 'cursor:text;background-color:white;padding:2px 4px 2px 4px;'
             ]);
         }
@@ -210,11 +218,11 @@ class QrCodeEdit extends Base
     public function htmlQRUrl( $cypher = false ) {
         $id = $this->id->value;
         $code = !$cypher ? $this->code->value : base64_encode($this->cypher->value);
-        $content = $code != '' ? $this->_plugin->getApiUrl( $code, $cypher ) : ' - - - ';
+        $content = $code != '' ? self::plugin()->getApiUrl( $code, $cypher ) : ' - - - ';
         if ( $code != '' && $cypher ) {
             $content = substr($content, 0, 80) .  " ...";
         }
-        echo $this->_plugin->getCopyApiUrl2CBIcon( $id, $code, $cypher );
+        echo SRC\Copy2CB::getApiUrlIcon( $id, $code, $cypher );
         echo '&nbsp; ';
         DATA\FormTag::html( 'label', [
              'content' => $content
@@ -225,11 +233,11 @@ class QrCodeEdit extends Base
     public function htmlQRShortcode1() {
         $id = $this->id->value;
         if ( $id > 0 ) {
-            $text = $this->_plugin->getShortcode1Template( $id );
-            echo $this->_plugin->getCopyShortcode2CBIcon( $id, 1 );
+            $text = SRC\Shortcode::getTemplate1( $id );
+            echo SRC\Copy2CB::getShortcodeIcon( $id, 1 );
             echo '&nbsp; ';
             DATA\FormTag::html( 'label', [
-                'content' => $text
+                 'content' => $text
                 ,'style' => 'cursor:text;background-color:white;padding:2px 4px 2px 4px;'
             ]);
         }
@@ -239,11 +247,11 @@ class QrCodeEdit extends Base
         $id = $this->id->value;
         if ( $id > 0 ) {
             $standard = $this->cypher->value == '';
-            $text = $this->_plugin->getShortcode2Template( $id, $standard );
-            echo $this->_plugin->getCopyShortcode2CBIcon( $id, 2, $standard );
+            $text = SRC\Shortcode::getTemplate2( $id, $standard );
+            echo SRC\Copy2CB::getShortcodeIcon( $id, 2, $standard );
             echo '&nbsp; ';
             DATA\FormTag::html( 'label', [
-                'content' => $text
+                 'content' => $text
                 ,'style' => 'cursor:text;background-color:white;padding:2px 4px 2px 4px;'
             ]);
         }
@@ -253,15 +261,15 @@ class QrCodeEdit extends Base
         $id = $this->id->value;
         if ( $id > 0 ) {
             if ( $anyQrHideEnabled || $this->cypher->value != '' ) {
-                echo $this->_plugin->getCopyHiddenField2CBIcon( $id );
-                $text = $this->_plugin->getHiddenFieldTemplate( $id );
+                echo SRC\Copy2CB::getHiddenFieldIcon( $id );
+                $text = SRC\FORM\Base::getHiddenFieldTemplate( $id );
             } else {
-                echo $this->_plugin->getCopyHiddenField2CBIcon( -1 );
+                echo SRC\Copy2CB::getHiddenFieldIcon( -1 );
                 $text = ' - - - ';
             }
             echo '&nbsp; ';
             DATA\FormTag::html( 'label', [
-                'content' => $text
+                 'content' => $text
                 ,'style' => 'cursor:text;background-color:white;padding:2px 4px 2px 4px;'
             ]);
         }
@@ -275,10 +283,10 @@ class QrCodeEdit extends Base
             $code = !$cypher ? $code_raw : base64_encode($code_raw);
 
             if ( $code != '' ) {
-                $url = $this->_plugin->getApiUrl( $code, $cypher );
+                $url = self::plugin()->getApiUrl( $code, $cypher );
 
-                $size = $this->_plugin->config->imgSize->getValue();
-                $pad = $this->_plugin->config->imgPad->getValue();
+                $size = self::plugin()->config->imgSize->getValue();
+                $pad = self::plugin()->config->imgPad->getValue();
 
                 $fore_color = SRC\QrCode::getColor( $this->img_forecolor->value );
                 $back_color = SRC\QrCode::getColor( $this->img_backcolor->value );
@@ -288,7 +296,7 @@ class QrCodeEdit extends Base
                 $img_url = SRC\QrCode::getUrl( $name, $url, $size, $pad, $fore_color, $back_color );
 
                 $img = DATA\FormTag::get( 'img', [
-                    'src' => $img_url
+                     'src' => $img_url
                     ,'alt' => 'click to download'
                     ,'style' => 'margin: 2px;'
                 ] );
@@ -296,7 +304,7 @@ class QrCodeEdit extends Base
                 echo '<div style="display: flex; justify-content: center; flex-wrap: wrap; margin-top: 2em;">';
                     echo '<div style="flex-basis: 100%; text-align: center; font-style: italic;">click the image to download it</div>';
                     DATA\FormTag::html( 'a', [
-                        'href' => $img_url
+                         'href' => $img_url
                         ,'title' => 'click to download'
                         ,'download' => uniqid()
                         ,'html' => $img
@@ -335,10 +343,16 @@ class QrCodeEdit extends Base
         }
     }
 
+    public function htmlDuplicate() {
+        $this->htmlButton( 'duplicate', 'save as new', 'color: #ffffff; background-color: #bf00ff; border-color: #a200d9;' );
+        if ( !self::plugin()->hasDuplicate() ) {
+            echo ' ' . self::plugin()->pro('color: #bf00ff;', 'PRO version required');
+        }
+    }
 
     public function loadQrCode( $id ) {
         if ( $id > 0 ) {
-            $qrcode= $this->_database->loadQrCode( $id );
+            $qrcode= self::database()->loadQrCode( $id );
             if ( $qrcode !== false ) {
 
                 $this->id->value = $qrcode->qrcode_id;
@@ -373,7 +387,7 @@ class QrCodeEdit extends Base
     }
 
     public function htmlButtonLink( $id ) {
-        $url = $this->_plugin->pageQrCode->getUrl( [self::QS_ID => $id] );
+        $url = self::plugin()->pageQrCode->getUrl( [self::QS_ID => $id] );
         if ( $id == 0 ) {
             parent::htmlLinkButton( $url, 'create new' );
         } else {
@@ -393,7 +407,7 @@ class QrCodeEdit extends Base
 
     public function onSubmit() {
 
-        if ( in_array($this->_action, [ 'save', 'generate_cypher', 'cancel_cypher', 'save_cypher' ]) ) {
+        if ( in_array($this->_action, [ 'save', 'generate_cypher', 'cancel_cypher', 'save_cypher', 'duplicate' ]) ) {
             $save = true;
 
             $this->description->value = trim( $this->description->value );
@@ -404,16 +418,17 @@ class QrCodeEdit extends Base
 
             $this->code->value = trim( $this->code->value );
             if ( $this->code->value != '' ) {
-                $this->_plugin->config->load();
-                if ( !$this->_plugin->config->sharedCodeEnabled->value ) {
+                self::plugin()->config->load();
+                if ( !self::plugin()->config->sharedCodeEnabled->value ) {
                     $code = $this->code->value;
                     $id = intval($this->id->value);
-                    $items = $this->_database->loadQrCodeByKey( $code );
+                    $items = self::database()->loadQrCodeByKey( $code );
                     if ( is_array($items) ) {
                         for ($n=0; $n<count($items); $n++) {
                             if ($items[$n]->code == $code && $items[$n]->qrcode_id != $id) {
                                 $save = false;
-                                self::msgErr( "Code is already in use by another QR-Code, whereas it must be unique: you can disable this restriction <a href=\"{$this->_plugin->pageConfig->url}\">here</a>." );
+                                $url = self::plugin()->pageConfig->url;
+                                self::msgErr( "Code is already in use by another QR-Code, whereas it must be unique: you can disable this restriction <a href=\"{$url}\">here</a>." );
                                 break;
                             }
                         }
@@ -430,8 +445,8 @@ class QrCodeEdit extends Base
 
             $this->url_redirect->value = trim( $this->url_redirect->value );
             if ( $this->url_redirect->value == '' ) {
-                $save = false;
-                self::msgErr( 'Redirect URL is empty.' );
+                //$save = false;
+                self::msgWarn( "Redirect URL is empty: the qr code won't work!" );
             }
 
             $max_scan_tot = intval( $this->max_scan_tot->value );
@@ -445,9 +460,17 @@ class QrCodeEdit extends Base
                 $this->max_scan_tot->value = $max_scan_tot;
             }
 
-            if ($this->img_forecolor->value == $this->img_backcolor->value) {
+            if ( $this->img_forecolor->value == $this->img_backcolor->value ) {
                 $save = false;
                 self::msgErr( 'Foreground and background colors cannot be equal.' );
+            }
+
+            if ( $this->_action == 'duplicate' ) {
+                if ( !self::plugin()->hasDuplicate() ) {
+                    $save = false;
+                    $msg = $this->getProMsg('Duplication is available only in the PRO version');
+                    self::msgWarn($msg);
+                }
             }
 
             if ( $save ) {
@@ -460,9 +483,13 @@ class QrCodeEdit extends Base
                     $this->showCypher = true;
                 } else if ( $this->_action == 'save_cypher' ) {
                     $this->showCypher = true;
+                } else if ( $this->_action == 'duplicate' ) {
+                    if ( self::plugin()->hasDuplicate() ) {
+                        $this->id->value = self::plugin()->addon::getQRCodeDuplicateId();
+                    }
                 }
 
-                if ( $this->_plugin->config->mfaEnabled->value == false ) {
+                if ( self::plugin()->config->mfaEnabled->value == false ) {
                     $this->only_mfa->value = false;
                 }
 
@@ -490,11 +517,14 @@ class QrCodeEdit extends Base
                     ,'img_backcolor' => trim( $this->img_backcolor->value )
                 ];
 
-                $result = $this->_database->saveQrCode( $data, $this->id->value );
+                $result = self::database()->saveQrCode( $data, $this->id->value );
 
                 if ( $result !== false ) {
                     if ( $result === true ) {
                         self::msgOk( 'Data have been saved.' );
+                        if ($this->code_old->value != '' && $this->code_old->value != $this->code->value) {
+                            self::msgWarn( "Image(s) changed because the qr code Key has been modified." );
+                        }
                         $this->loadQrCode( $this->id->value );
                     } else {
                         $id = intval($result);
@@ -516,7 +546,7 @@ class QrCodeEdit extends Base
             $id = intval( $this->id->value );
 
             if ( $id > 0 ) {
-                $result = $this->_database->deleteQrCode( $id );
+                $result = self::database()->deleteQrCode( $id );
                 if ( $result !== false ) {
                     $this->reset();
                     self::msgOk( 'Data have been deleted.' );

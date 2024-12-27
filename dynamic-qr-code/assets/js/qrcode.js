@@ -1,8 +1,6 @@
 (function($){
     'use strict';
-    $(document).ready(function()
-    {
-        if (!$.ajax) { return null; }
+    $(document).ready(function() {
 
         $('#a-std').click( function() {
             $('#a-enh').removeClass('nav-tab-active');

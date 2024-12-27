@@ -1,0 +1,1 @@
+This is a major upgrade. Please back up your site before proceeding with the update.

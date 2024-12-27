@@ -1,6 +1,6 @@
 <?php
 namespace SOSIDEE_DYNAMIC_QRCODE\SOS\WP\BE;
-use \SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP;
+use SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
 /**
@@ -8,10 +8,11 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
  */
 class Menu
 {
-    use SOS_WP\Property {
-        SOS_WP\Property::__set as __setProp;
+    use SOS_WP\TProperty {
+        SOS_WP\TProperty::__set as __setProp;
     }
-    use SOS_WP\Translation;
+    use SOS_WP\TTranslation;
+    use SOS_WP\TBase;
 
     public $name;
     public $slug;
@@ -23,18 +24,17 @@ class Menu
 
         $this->_addProperty('icon', '');
 
-        $this->name = '';
+        $this->name = $name;
         $this->slug = '';
         $this->color = false;
 
         $this->pages = array();
-        $this->name = $name;
     }
 
-    public function __set($name, $value) {
-        switch ($name) {
+    public function __set( $name, $value ) {
+        switch ( $name ) {
             case 'icon':
-                if ( sosidee_str_starts_with($value, '-') == true ) {
+                if ( sosidee_str_starts_with($value, '-') === true ) {
                     $value = 'dashicons' . $value;
                 }
                 break;
@@ -51,11 +51,11 @@ class Menu
      * 
      * @return Menu object
      */
-    public function add($page, $title = '', $role = null) {
+    public function add( $page, $title = '', $role = null ) {
         if (count($this->pages) == 0) {
             $this->slug = $page->key; //set the menu base slug
         }
-        if ($page->title == '') {
+        if ( $page->title == '' ) {
             $page->title = $title;
         }
         if ( !is_null($role) ) {
@@ -69,15 +69,17 @@ class Menu
     /**
      * Adds a menu item without displaying it
      */
-    public function addHidden($page, $title = '', $role = null) {
+    /*
+    public function addHidden( $page, $title = '', $role = null ) {
         $page->menuType = MenuType::HIDDEN;
         return $this->add($page, $title, $role);
     }
+    */
 
     /**
      * Adds an item to the 'Tools' menu
      */
-    public function addTool($page, $title = '', $role = null) {
+    public function addTool( $page, $title = '', $role = null ) {
         $page->menuType = MenuType::TOOLS;
         return $this->add($page, $title, $role);
     }
@@ -85,14 +87,19 @@ class Menu
     /**
      * Adds an item to the 'Settings' menu
      */
-    public function addSetting($page, $title = '', $role = null) {
+    public function addSetting( $page, $title = '', $role = null ) {
         $page->menuType = MenuType::SETTINGS;
         return $this->add($page, $title, $role);
     }
 
     public function initialize() {
 
-        for ($n=0; $n<count($this->pages); $n++) {
+        if ( self::plugin()->isPro ) {
+            $this->name .= ' PRO';
+            $this->icon = '-awards';
+        }
+
+        for ( $n=0; $n<count($this->pages); $n++ ) {
             $page = $this->pages[$n];
             $file = $page->path;
 
@@ -104,29 +111,31 @@ class Menu
             if ( $title == '' ) {
                 $title = $page->key;
             }
-            if ( $page->menuColor !== false) {
+            if ( $page->menuColor !== false ) {
                 $title = "<span style='color:{$page->menuColor};'>" . $title . '</span>';
             }
 
-            if ($page->menuType == MenuType::TOOLS) {
-                $page->hook = add_management_page( $this->name, $title, $page->role, $page->key, $callback );
+            if ( $page->menuHidden ) {
+                $title = '';
             }
-            else if ($page->menuType == MenuType::SETTINGS) {
+
+            if ( $page->menuType == MenuType::TOOLS ) {
+                $page->hook = add_management_page( $this->name, $title, $page->role, $page->key, $callback );
+            } else if ( $page->menuType == MenuType::SETTINGS ) {
                 $page->hook = add_options_page( $this->name, $title, $page->role, $page->key, $callback );
             } else {
-                $root = ($page->menuType != MenuType::HIDDEN) ? $this->slug : null;
-                if ($n == 0) {
+                if ( $n == 0 ) {
                     $item = $this->name;
                     if ($this->color !== false) {
                         $item = "<span style=\"color:{$this->color};\">" . $item . "</span>";
                     }
                     add_menu_page( $this->name, $item, $page->role, $this->slug, $callback , $this->icon);
-                    $page->hook = add_submenu_page( $root, $this->name, $title, $page->role, $this->slug, $callback );
+                    $page->hook = add_submenu_page( $this->slug, $this->name, $title, $page->role, $this->slug, $callback );
                 } else {
-                    $page->hook = add_submenu_page( $root, $this->name, $title, $page->role, $page->key, $callback );
+                    $page->hook = add_submenu_page( $this->slug, $this->name, $title, $page->role, $page->key, $callback );
                 }
             }
         }
     }
-    
+
 }

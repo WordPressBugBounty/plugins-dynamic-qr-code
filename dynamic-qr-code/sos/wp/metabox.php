@@ -17,7 +17,7 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
  */
 class MetaBox
 {
-    use Property, Message, Translation;
+    use TProperty, TMessage, TTranslation;
 
     public $fields;
 
@@ -185,7 +185,7 @@ class MetaBox
                         $msg = 'A security problem (invalid nonce) occurred while checking a metabox data';
                     }
                 }
-                sosidee_log( 'Metabox.callbackSave(): empty or invalid nonce (' . esc_attr($_POST[$nonce_name]) . ')' );
+                sosidee_log( 'Metabox.callbackSave(): empty or invalid nonce' );
             }
         } else {
             $post_type = get_post_type_object( $post->post_type );
@@ -206,6 +206,7 @@ class MetaBox
         } else {
             $this->err($msg);
         }
+        return $post_ID;
     }
 
     public function addField( $key, $value = null, $is_checkbox = false ) {
@@ -269,7 +270,7 @@ class MetaBox
     /**
      * Save data in the 'postmeta' table
      * 
-     * @param WP_Post $post : the post related to the metabox
+     * @param \WP_Post $post : the post related to the metabox
      * @return mixed:
      *                  (bool) true: success
      *                  (bool) false: failure
@@ -283,7 +284,7 @@ class MetaBox
             $field = $this->fields[$n];
             $key = $field->key;
             $values[$key] = $field->value;
-            if ( !is_array($prev_values) || $prev_values[$key] != $field->value ) {
+            if ( !is_array($prev_values) || !array_key_exists($key, $prev_values) || $prev_values[$key] != $field->value ) {
                 $ret = false;
             }
         }
@@ -349,8 +350,8 @@ class MetaBox
     /**
      * Template for the displaying function
      * 
-     * @param Metabox $metabox : a metabox
-     * @param WP_Post $post : the post
+     * @param \Metabox $metabox : a metabox
+     * @param \WP_Post $post : the post
      * 
     public function html( $metabox, $post ) {
         //get the field by key
