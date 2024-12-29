@@ -228,7 +228,7 @@ EOD;
                         $allButLast = array_slice($features, 0, -1);
                         $list = implode(', ', $allButLast) . ' and ' .  $features[$count - 1];
                     }
-                    $msg = $this->getProMsg($list . ' logs are available on');
+                    $msg = $this->getProMsg($list . ' logs are available only on the PRO version');
                     self::msgWarn($msg);
                 }
             }

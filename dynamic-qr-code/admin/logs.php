@@ -1,5 +1,5 @@
 <?php
-defined( 'SOSIDEE_PROLICMAN' ) or die( 'you were not supposed to be here' );
+defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
 $plugin = \SOSIDEE_DYNAMIC_QRCODE\SosPlugin::instance();
 $form = $plugin->formSearchLog;
@@ -13,6 +13,8 @@ $logs = $form->logs;
 $plugin->config->load(); // load current configuration
 $code_shared = $plugin->config->sharedCodeEnabled->value;
 $mfa_enabled = $plugin->config->mfaEnabled->value;
+
+$asterisk = $plugin->isPro ? '' : '*';
 
 echo $plugin->help('scan-logs');
 
@@ -38,7 +40,7 @@ $plugin->htmlAdminPageTitle('Scan logs');
                 <br><span class="fs90pc">(h <?php echo sosidee_time_format( \DateTime::createFromFormat('YmdHis', "20000001000000") ); ?>)</span>
             </td>
             <td class="topped" rowspan="2">
-                <span class="bolded" style="margin-bottom: 4px; display:block;">Display</span>
+                <span class="bolded" style="margin-bottom: 4px; display:block;">Display <?php echo $asterisk; ?></span>
                 <?php $form->htmlShowGeo(); ?>
                 <br>
                 <?php $form->htmlShowLang(); ?>
@@ -195,5 +197,12 @@ $plugin->htmlAdminPageTitle('Scan logs');
         }
         ?>
     </p>
+
+    <?php if ( !$plugin->isPro ) {
+        echo '<hr style="margin-left:0;width:50%;">';
+        echo '<p> <b>*</b> PRO version only ';
+        echo $plugin->pro();
+        echo '</p>';
+    } ?>
 
 </div>

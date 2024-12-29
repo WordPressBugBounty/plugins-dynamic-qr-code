@@ -312,10 +312,12 @@ $plugin->htmlAdminPageTitle($title);
     $form->htmlCypher();
     $form->htmlClose();
 
+    /*
     if ( !$plugin->hasDuplicate() ) {
         echo '<hr style="margin-left:0;width:50%;">';
         echo $plugin->pro() . ' available in the PRO version';
     }
+    */
 
 ?>
 

@@ -1,7 +1,7 @@
 <?php
 /*
 Plugin Name: Dynamic QR Code
-Version: 1.0.0
+Version: 1.0.1
 Description: Allows you to create DYNAMIC QR CODES: you can modify what happens when scanning your QR code without actually modifying (and reprinting) the QR code.
 Requires at least: 5.9
 Tested up to: 6.7

@@ -4,7 +4,7 @@ Contributors: sosidee
 Tags: qr code, qr code generator, dynamic qr code, dynamic qr code generator
 Requires at least: 5.9.0
 Tested up to: 6.7
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 Requires PHP: 8.0
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
@@ -187,9 +187,12 @@ Yes, Dynamic QR Code is free.
 Yes, absolutely! You can find all the information about the PRO version and how to purchase it at this URL: [https://sosplugin.com/dynamic-qr-code/](https://sosplugin.com/dynamic-qr-code/)
 
 == Upgrade Notice ==
-This is a major upgrade. Please ensure you back up your site before updating.
+Please ensure you back up your site before updating.
 
 == Changelog ==
+
+= 1.0.1 =
+* Fixed a bug in the logs page (admin dashboard).
 
 = 1.0.0 =
 * Code refactored to ensure compatibility with add-ons provided by the Pro License Manager plugin.
