@@ -3,7 +3,7 @@ namespace SOSIDEE_DYNAMIC_QRCODE\SRC;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
 use SOSIDEE_DYNAMIC_QRCODE\SRC\FORM\Base;
-use SOSIDEE_DYNAMIC_QRCODE\SOS\Mobile;
+use SOSIDEE_DYNAMIC_QRCODE\SOS\WP\Mobile;
 
 class Metabox
 {
@@ -28,17 +28,17 @@ class Metabox
     public function html( $metabox, $post ) {
 
         echo '<p>Prevent users to view the content if not accessed by scanning the image of this QR-Code: ';
-        echo self::plugin()->help('hide-2', 'float: right;');
+        echo wp_kses( self::plugin()->help('hide-2', 'float: right;'), sosidee_allowed_html() );
         echo '</p>';
         //$options = self::plugin()->loadQrCodeList('- select -');
         $options = QrCode::loadQrCodeList('- select -');
         $qid = $metabox->getField(self::FLD_QC);
         echo '<p>';
-        echo $qid->getSelect( [ 'options' => $options ] );
+        echo wp_kses( $qid->getSelect( [ 'options' => $options ] ), sosidee_allowed_html() );
         echo '</p>';
         $form = $metabox->getField(self::FLD_FORM);
         echo '<p>';
-        echo $form->getCheckbox( [ 'label' => 'allow reloading this post/page by submitting the form(s) contained in it' ] );
+        echo wp_kses( $form->getCheckbox( [ 'label' => 'allow reloading this post/page by submitting the form(s) contained in it' ] ), sosidee_allowed_html() );
         echo '</p>';
 
     }
@@ -50,7 +50,16 @@ class Metabox
         }
     }
 
-    public function checkPost( $content ) {
+    private function isPagePasswordCorrect() {
+        global $post;
+        $cookie = $_COOKIE['wp-postpass_' . COOKIEHASH] ?? '';
+        return ( hash_equals($post->post_password, stripslashes($cookie)) );
+    }
+
+    public function checkPost() {
+        if ( !is_singular() ) {
+            return; // if it's not a post or a single page
+        }
         $this->ctrl->load();
         $qid = $this->ctrl->getField(self::FLD_QC);
 
@@ -61,22 +70,24 @@ class Metabox
             $hasForm = boolval( $form->value );
             $delete_cookie = true;
 
-            $isMobileBrowser = Mobile::is() && Mobile::isBrowser();
+            $isMobileBrowser = Mobile::is() && Mobile::browser();
             $this->config->load(); // load current configuration
-            $isDeviceEnabled = $isMobileBrowser || $this->config->anyDeviceEnabled->value; //it's a mobile browser OR any device
+            $isDeviceEnabled = $isMobileBrowser || $this->config->anyDeviceEnabled->value; // it's a mobile browser OR any device
 
             if ( $isDeviceEnabled ) {
-                //controlla il valore del cookie, e poi ...
-                $key = OTKey::getCookie();
-                if ( $key != '' ) {
-                    $otkey = self::database()->loadOTKey( $key, $id );
-                    if ( $otkey !== false && $otkey->otk_id > 0 ) {
-                        $tally = intval( $otkey->tally );
-                        $tally++;
-                        if ( self::database()->updateOTKey( $otkey->otk_id, $tally ) == false ) {
-                            sosidee_log("database.updateOTKey({$tally}) failed for key.id={$otkey->otk_id}");
-                        }
-                        if ( $tally == 1 ) {
+                $continue = true;
+                if ( post_password_required() && !$this->isPagePasswordCorrect() ) {
+                    $delete_cookie = false;
+                    $show = true;
+                    $continue = false;
+                }
+                if ( $continue ) {
+                    // controlla il valore del cookie, e poi ...
+                    $key = OTKey::getCookie();
+                    if ( $key != '' ) {
+                        /*
+                        $used = self::database()->otkeys->consumeOnce( $key, $id );
+                        if ( $used ) {
                             if ( $hasForm ) {
                                 $delete_cookie = false;
                             }
@@ -86,31 +97,54 @@ class Metabox
                                 $show = true;
                                 $delete_cookie = false;
                             } else {
-                                sosidee_log("Hiding content: cookie already used.");
+                                sosidee_log("Hiding content: cookie already used or not found.");
+                            }
+                        }
+                        */
+                        $otkey = self::database()->otkeys->load( $key, $id );
+                        if ( $otkey !== false && $otkey->otk_id > 0 ) {
+                            $tally = intval( $otkey->tally );
+                            $tally++;
+                            if ( self::database()->otkeys->save( $otkey->otk_id, $tally ) == false ) {
+                                sosidee_log("database.updateOTKey({$tally}) failed for key.id={$otkey->otk_id}");
+                            }
+                            if ( $tally == 1 ) {
+                                if ( $hasForm ) {
+                                    $delete_cookie = false;
+                                }
+                                $show = true;
+                            } else {
+                                if ( $hasForm && Base::checkPosted( $id ) ) {
+                                    $show = true;
+                                    $delete_cookie = false;
+                                } else {
+                                    sosidee_log("Hiding content: cookie already used.");
+                                }
+                            }
+                        } else {
+                            if ( $otkey !== false ) {
+                                sosidee_log("Hiding content: cookie key not found in the database.");
+                            } else {
+                                sosidee_log("Hiding content: a problem occurred while reading the cookie key in the database.");
                             }
                         }
                     } else {
-                        if ( $otkey !== false ) {
-                            sosidee_log("Hiding content: cookie key not found in the database.");
-                        } else {
-                            sosidee_log("Hiding content: a problem occurred while reading the cookie key in the database.");
-                        }
+                        sosidee_log("Hiding content: cookie not found.");
                     }
-                } else {
-                    sosidee_log("Hiding content: cookie not found.");
                 }
             } else {
                 sosidee_log("Hiding content: device not enabled.");
             }
 
             if ( $delete_cookie ) {
-                OTKey::setJsCookieEraser();
+                //OTKey::setJsCookieEraser();
+                OTKey::deleteCookie();
             }
 
             if ( $show ) {
-                $ret = $content;
+                return;
             } else {
-                $qrcode = self::database()->loadQrCode( $id );
+                $qrcode = self::database()->qrcodes->load( $id );
                 if ( $qrcode !== false ) {
                     $url = $qrcode->url_cypher;
                 } else {
@@ -120,14 +154,16 @@ class Metabox
                 if ( $url == '') {
                     $url = $this->config->urlError->value;
                 }
-                $ret = self::plugin()->getJsRedirect( $url );
+
+                if ( $url != '') {
+                    $url = self::plugin()->getRedirectUrl($url);
+                    wp_redirect($url);
+                    exit;
+                }
             }
 
         } else {
-            $ret = $content;
+            //
         }
-
-        return $ret;
     }
-
 }

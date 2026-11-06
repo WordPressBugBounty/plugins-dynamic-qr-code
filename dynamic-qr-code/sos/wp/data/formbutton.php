@@ -4,10 +4,10 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
 
 class FormButton
 {
-    const STYLE_SUCCESS = 'color: #ffffff; background-color: #5cb85c; border-color: #4cae4c;';
-    const STYLE_DANGER = 'color: #ffffff; background-color: #d9534f; border-color: #d43f3a;';
-    const STYLE_WARNING = 'color: #ffffff; background-color: #f0ad4e; border-color: #f0ad4e;';
-    const STYLE_SECONDARY = 'color: #ffffff; background-color: #6c757d; border-color: #6c757d';
+    const STYLE_SUCCESS = 'color: #ffffff; background-color: #5cb85c; border-color: #4cae4c; cursor: pointer;';
+    const STYLE_DANGER = 'color: #ffffff; background-color: #d9534f; border-color: #d43f3a; cursor: pointer;';
+    const STYLE_WARNING = 'color: #ffffff; background-color: #f0ad4e; border-color: #f0ad4e; cursor: pointer;';
+    const STYLE_SECONDARY = 'color: #ffffff; background-color: #6c757d; border-color: #6c757d; cursor: pointer;';
 
     private static function get( $type, $name, $value, $style, $class, $onclick ) {
         return FormTag::get( 'input', [
@@ -30,7 +30,8 @@ class FormButton
     }
 
     public static function htmlSubmit( $name, $value = 'ok', $style = '', $class = '', $onclick = null ) {
-        echo sosidee_kses( self::getSubmit( $name, $value, $style, $class, $onclick ) );
+        //echo wp_kses( self::getSubmit( $name, $value, $style, $class, $onclick ), sosidee_allowed_html() );
+        sosidee_echo_kses( self::getSubmit( $name, $value, $style, $class, $onclick ) );
     }
 
     public static function getLink( $value = 'ok', $style = '', $class = '', $onclick = null ) {
@@ -40,7 +41,8 @@ class FormButton
     }
 
     public static function htmlLink( $value = 'ok', $style = '', $class = '', $onclick = null ) {
-        echo sosidee_kses( self::get( 'button', null, $value, $style, $class, $onclick ) );
+        // echo wp_kses( self::getLink( $value, $style, $class, $onclick ), sosidee_allowed_html() );
+        sosidee_echo_kses( self::getLink( $value, $style, $class, $onclick ) );
     }
 
 }

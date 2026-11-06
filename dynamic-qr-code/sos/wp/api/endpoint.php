@@ -4,6 +4,8 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
 
 class EndPoint
 {
+    use \SOSIDEE_DYNAMIC_QRCODE\SOS\WP\TBase;
+
     const ROOT = 'rapi';
     const ACTION = 'wp_rest';
 
@@ -20,7 +22,7 @@ class EndPoint
     public $localized;
     public $nonceDisabled;
 
-    public function __construct($method, $route, $callback, $version) {
+    public function __construct( $method, $route, $callback, $version ) {
         $this->method = $method;
         $this->route = $route;
         $this->callback = $callback;
@@ -42,9 +44,8 @@ class EndPoint
 
     private function getNamespace() {
         $ret = trim( self::ROOT, '/' );
-        $ver  = strval($this->version);
-        if ( $ver > 0 ) {
-            $ret .= "/v{$ver}";
+        if ( !empty($this->version) ) {
+            $ret .= "/v{$this->version}";
         }
         return $ret;
     }
@@ -62,7 +63,24 @@ class EndPoint
     }
 
     public function getUrl() {
-        return get_site_url() . '/' . $this->getPath();
+        $route  = $this->getRoute();
+        $prefix = rest_get_url_prefix(); // normalmente "wp-json"
+
+        // prova la via canonica
+        $url = get_rest_url(null, $route);
+
+        // fallback solo se l'URL è vuoto, fuori dominio o fuori prefisso
+        $home = trailingslashit(home_url());
+        if ( empty($url) || strpos($url, $home) !== 0 || strpos($url, "/$prefix/") === false ) {
+            $url = add_query_arg('rest_route', '/' . ltrim($route, '/'), $home);
+        }
+
+        if ( sosidee_is_dev() ) {
+            $url = \SOSIDEE_DYNAMIC_QRCODE\SOS\WP\Http::replaceLocalHostWithIp( $url );
+        }
+
+        return $url;
+        //return get_site_url() . '/' . $this->getPath();
     }
 
     public function localize( $name = 'sosapi', $conf = [] ) {
@@ -92,27 +110,29 @@ class EndPoint
     }
 
     public function enqueueScript() {
-        if ($this->localized !== false) {
+        if ( $this->localized !== false ) {
             $action = !is_admin() ? 'wp_enqueue_scripts' : 'admin_enqueue_scripts';
-            add_action( $action, function() {
-                if ( !array_key_exists('nonce', $this->configData) && $this->nonceDisabled !== true ) {
-                    $this->configData['nonce'] = self::getNonce();
+            $me = $this;
+            add_action( $action, function() use($me) {
+                if ( !array_key_exists('nonce', $me->configData) && $me->nonceDisabled !== true ) {
+                    $me->configData['nonce'] = $me::getNonce();
                 }
-                wp_register_script( self::ACTION, '', [], '', true );
+                wp_register_script( self::ACTION, '', [], $me->version, true );
                 wp_enqueue_script( self::ACTION );
-                wp_localize_script( self::ACTION, $this->configName, $this->configData );
+                wp_localize_script( self::ACTION, $me->configName, $me->configData );
             });
         }
     }
 
-    public static function script($code) {
-        wp_register_script( self::ACTION, '', ['jquery'], '', true );
+    public static function script( $code ) {
+        $version = self::plugin()->version;
+        wp_register_script( self::ACTION, '', ['jquery'], $version, true );
         wp_enqueue_script( self::ACTION );
         wp_add_inline_script(self::ACTION, $code );
     }
 
     /**
-     *  @TODO: nella variabile $args è possibile inserire la chiave 'args' con valore un array contenente
+     *  @TODO: nella variabile $args è possibile inserire anche la chiave 'args' con valore un array contenente
      *  le chiavi della querystring (metodo GET), i cui valori sono recuperabili con il metodo $request->get_param( 'key' );
      *  https://developer.wordpress.org/reference/functions/register_rest_route/
      *  https://developer.wordpress.org/rest-api/extending-the-rest-api/adding-custom-endpoints/
@@ -132,7 +152,7 @@ class EndPoint
         ];
         if ( $this->nonceDisabled !== true ) {
             $args['permission_callback'] = function () {
-                $nonce = $_SERVER['HTTP_X_WP_NONCE'] ?? '';
+                $nonce = isset($_SERVER['HTTP_X_WP_NONCE']) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_WP_NONCE'] ) ) : '';
                 return wp_verify_nonce( $nonce, self::ACTION);
             };
         } else {

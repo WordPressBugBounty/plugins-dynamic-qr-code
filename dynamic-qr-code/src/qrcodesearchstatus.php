@@ -7,6 +7,7 @@ class QrCodeSearchStatus
     const NONE = 0;
     const ENABLED = 1;
     const DISABLED = -1;
+    const QUERY_NAME = 'status';
 
     public static function getList($caption = false) {
         $ret = array();
@@ -24,7 +25,7 @@ class QrCodeSearchStatus
         $ret = "";
         switch ($value) {
             case self::ENABLED:
-                $ret = 'enabled';
+                $ret = 'active';
                 break;
             case self::DISABLED:
                 $ret = 'disabled';

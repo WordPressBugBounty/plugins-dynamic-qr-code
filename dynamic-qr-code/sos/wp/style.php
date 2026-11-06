@@ -11,39 +11,34 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
  */
 class Style
 {
-    use TProperty {
-        TProperty::__get as __getProp;
-        TProperty::__set as __setProp;
-    }
+    use TBase;
 
     private $pages;
 
-    public $key;
+    private $key;
 
-    public static $PLUGIN_URL = '';
-    
-    public function __construct($key, $file) {
-        $this->_addProperty('url');
-        $this->url = $file;
+    private $url;
 
+    private $file;
+
+    public function __construct( $key, $file ) {
         $this->key = $key;
+        $this->file = $file;
+
+        if ( !str_starts_with($file, 'http') && !str_starts_with($file, '//') ) {
+            if ( !str_ends_with($file, '.css') ) {
+                $file .= '.css';
+            }
+            $this->url = self::plugin()::$url . "/assets/css/{$file}";
+        } else {
+            $this->url = $file;
+        }
 
         $this->pages = array();
     }
 
-    public function __set( $name, $value ) {
-        $ret = null;
-        switch ( $name ) {
-            case 'url':
-                if ( !sosidee_str_starts_with($value, 'http') && !sosidee_str_starts_with($value, '//') ) {
-                    if ( !sosidee_str_ends_with($value, '.css') ) {
-                        $value .= '.css';
-                    }
-                    $value = self::$PLUGIN_URL . "/assets/css/{$value}";
-                }
-                break;
-        }
-        return $this->__setProp( $name, $value );
+    public function getFile() {
+        return $this->file;
     }
 
     public function addToPage() {
@@ -51,8 +46,13 @@ class Style
         if ( func_num_args() == 1 && is_array($pages[0]) ) {
             $pages = $pages[0];
         }
-        for ( $n = 0; $n < count($pages); $n++ ) {
-            $this->pages[] = $pages[$n];
+        $keys = array_map(function($page) {
+            return $page->key;
+        }, $this->pages);
+        foreach ( $pages as $page ) {
+            if ( !in_array($page->key, $keys) ) {
+                $this->pages[] = $page;
+            }
         }
         return $this;
     }
@@ -60,17 +60,17 @@ class Style
     public function html() {
         $action = !is_admin() ? 'wp_enqueue_scripts' : 'admin_enqueue_scripts';
         add_action( $action, function() {
-            $add = !is_admin() || count($this->pages) == 0;
+            $add = !is_admin() || empty($this->pages);
             if ( !$add ) {
-                for ( $n=0; $n<count($this->pages); $n++ ) {
-                    if ( $this->pages[$n]->isCurrent() ) {
+                foreach ($this->pages as $page) {
+                    if ( $page->isCurrent() ) {
                         $add = true;
                         break;
                     }
                 }
             }
             if ( $add ) {
-                wp_enqueue_style( $this->key, $this->url, array(), null, 'all' );
+                wp_enqueue_style( $this->key, $this->url, array(), self::plugin()->version, 'all' );
             }
         } );
         return $this;

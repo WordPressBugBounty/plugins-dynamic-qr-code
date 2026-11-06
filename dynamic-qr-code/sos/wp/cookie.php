@@ -6,29 +6,48 @@ class Cookie
 {
 
     // $expiry: in seconds
-    public static function set( $name, $value, $expiry = 0 ) {
+    // $sameSite: 'Strict' | 'Lax' | 'None'
+    public static function set( $name, $value, $expiry = 0, $httpOnly = true, $sameSite = 'Lax' ) {
+        if ( empty($value) ) {
+            sosidee_log("Cookie::set() - value should not be empty (cookie '$name' deleted).");
+            return self::del( $name, $httpOnly, $sameSite );
+        }
         if ( $expiry > 0) {
             $expiry += time();
         }
-        if ( !empty($value) ) {
-            setcookie( $name, base64_encode( json_encode( $value ) ), $expiry, '/', self::getDomain() );
-        } else {
-            setcookie( $name, $value, $expiry, '/', self::getDomain() );
-        }
+        $options = [
+            'expires' => $expiry,
+            'path' => '/',
+            'domain' => self::getDomain(),
+            'secure' => HTTP::isSSL(),
+            'httponly' => $httpOnly,
+            'samesite' => $sameSite
+        ];
+        return setcookie( $name, base64_encode( json_encode( $value ) ), $options );
     }
 
-    public static function get( $name, $value_default = null ) {
+    public static function get( $name, $value_default = null, $as_array = false ) {
         $ret = $value_default;
         if ( isset($_COOKIE[$name]) ) {
-            if ( sosidee_is_base64( $_COOKIE[$name] ) ) { // checks the cookie value
-                $ret = sosidee_json_decode( base64_decode($_COOKIE[$name]), $value_default);
+            $value = wp_unslash( $_COOKIE[$name] );
+            if ( sosidee_is_base64( $value ) ) { // checks if the cookie value is base64 encoded
+                $ret = sosidee_json_decode( base64_decode( $value ), $value_default, $as_array);
             }
         }
         return $ret;
     }
 
-    public static function del( $name ) {
-        setcookie( $name, '', -1, '/', self::getDomain() );
+    public static function del( $name, $httpOnly = true, $sameSite = 'Lax' ) {
+        $options = [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'domain' => self::getDomain(),
+            'secure' => HTTP::isSSL(),
+            'httponly' => $httpOnly,
+            'samesite' => $sameSite
+        ];
+
+        return setcookie( $name, '', $options );
     }
 
     private static $domain = '';
@@ -37,48 +56,49 @@ class Cookie
     /** @noinspection HttpUrlsUsage */
     public static function getDomain() {
         if ( empty(self::$domain) ) {
-            $url = isset($_SERVER['HTTP_HOST']) ? strtolower( esc_url_raw($_SERVER['HTTP_HOST']) ) : '';
+            $url = isset($_SERVER['HTTP_HOST']) ? strtolower( esc_url_raw( wp_unslash($_SERVER['HTTP_HOST']) ) ) : '';
             if ( sosidee_str_starts_with($url, 'https://') ) {
                 $url = substr($url, strlen('https://'));
             } else if ( sosidee_str_starts_with($url, 'http://') ) {
                 $url = substr($url, strlen('http://'));
             }
-            self::$domain = strrev( $url );
+            $domain = strrev( $url );
             if ( count(self::$DOMAINS) == 0 ) {
                 self::loadDomains();
             }
             for ( $n=0; $n<count(self::$DOMAINS); $n++ ) {
-                if ( sosidee_str_starts_with( self::$domain, self::$DOMAINS[$n] ) ) {
+                if ( sosidee_str_starts_with( $domain, self::$DOMAINS[$n] ) ) {
                     $offset = strlen( self::$DOMAINS[$n] ) + 1;
-                    $pos = strpos(self::$domain, '.', $offset);
-                    if ($pos !== false) {
-                        self::$domain = substr( self::$domain, 0, $pos );
+                    $pos = strpos($domain, '.', $offset);
+                    if ( $pos !== false ) {
+                        $domain = substr( $domain, 0, $pos );
                     }
                     break;
                 }
             }
-            self::$domain = strrev( self::$domain );
+            self::$domain = strrev( $domain );
         }
         return self::$domain;
     }
 
     private static function loadDomains() {
+        self::$DOMAINS = [];
         $file = __DIR__ . DIRECTORY_SEPARATOR . 'assets' . DIRECTORY_SEPARATOR . 'public_suffix_list.dat';
         if ( realpath( $file ) !== false ) {
-            $handle = fopen($file, 'r');
-            if ($handle) {
-                while ( ($line = fgets($handle)) !== false) {
+            $lines = FileSystem::lines( $file, true );
+            if ( $lines !== false ) {
+                foreach ( $lines as $line ) {
                     $line = trim($line);
-                    if ( !empty($line) && !sosidee_str_starts_with($line, '//') ) {
+                    if ( !sosidee_str_starts_with($line, '//') ) {
                         self::$DOMAINS[] = strrev($line) . '.';
                     }
                 }
-                fclose($handle);
+                rsort(self::$DOMAINS);
             } else {
-                sosidee_log("SOS\WP\Cookie.loadDomains() could not read file $file");
+                sosidee_log("SOS\WP\Cookie.loadDomains() could not read file: $file");
             }
         } else {
-            sosidee_log("SOS\WP\Cookie.loadDomains() could not read file $file");
+            sosidee_log("SOS\WP\Cookie.loadDomains() file not found: $file");
         }
         rsort(self::$DOMAINS);
     }

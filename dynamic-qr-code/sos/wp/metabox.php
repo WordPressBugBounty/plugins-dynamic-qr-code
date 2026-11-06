@@ -17,7 +17,7 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
  */
 class MetaBox
 {
-    use TProperty, TMessage, TTranslation;
+    use TMessage, TTranslation, TBase;
 
     public $fields;
 
@@ -63,27 +63,22 @@ class MetaBox
     }
 
     public function registerCallback() {
-        if ( !is_null($this->callback) ) {
+        if ( is_callable($this->callback) ) {
             add_action(
                 'save_post'
                 ,[ $this, 'callbackSave' ]
                 ,10
                 ,3
             );
-
-            global $pagenow;
-            if ( $pagenow == 'post.php' ) {
-                add_action( 'admin_notices', [ $this, 'handleAdminNotices' ] );
-            }
         }
     }
 
     public function register( $plugin ) {
 
-        if ( !is_null($this->html) ) {
+        if ( is_callable($this->html) ) {
             $html = [ $this, 'callbackDisplay' ];
         } else {
-            $html = function() { echo "<p>Warning: the function html() of this metabox has not been defined.</p>"; };
+            $html = function() { echo "<p>Warning: the html() function has not been defined for this metabox.</p>"; };
         }
 
         $context = $this->context;
@@ -101,22 +96,6 @@ class MetaBox
             ,[ '__block_editor_compatible_meta_box' => $this->compatible ]
         );
 
-        /*
-        if ( !is_null($this->callback) ) {
-            add_action(
-                 'save_post'
-                ,[ $this, 'callbackSave' ]
-                ,10
-                ,3
-            );
-            
-            global $pagenow;
-            if ( $pagenow == 'post.php' ) {
-                add_action( 'admin_notices', [ $this, 'handleAdminNotices' ] );
-            }
-        }
-        */
-        
     }
 
     /**
@@ -126,7 +105,12 @@ class MetaBox
         $nonce_name = $this->getNonceId( $post );
         wp_nonce_field( $nonce_name, $nonce_name );
         $this->loadFromDb( $post );
-        return call_user_func( $this->html, $this, $post );
+        if ( is_callable( $this->html ) ) {
+            return call_user_func( $this->html, $this, $post );
+        } else {
+            sosidee_log("Metabox html() method not found.");
+            return null;
+        }
     }
 
     /**
@@ -163,20 +147,19 @@ class MetaBox
         }
 
         if ( !in_array( $post->post_type, $this->screen) ) {
-            // when the post type is different from 'post' and 'page' the metabox is not displayed
-            // and therefore the nonce is not included in the post -> error message on post saving
+            // when the type is different from 'post' and 'page', the metabox is not displayed
+            // and therefore the nonce is not included in the post -> error message on saving
             return $post_ID;
         }
 
         $nonce_name = $this->getNonceId($post_ID);
-        if ( ! isset( $_POST[$nonce_name] ) || ! wp_verify_nonce( $_POST[$nonce_name], $nonce_name ) ) {
+        if ( ! isset( $_POST[$nonce_name] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash($_POST[$nonce_name])), $nonce_name ) ) {
             if ( $update ) {
-                $plugin = \SOSIDEE_DYNAMIC_QRCODE\SosPlugin::instance();
-                if ( $plugin::$internationalized !== false ) {
+                if ( self::plugin()::$internationalized !== false ) {
                     if ( !isset( $_POST[$nonce_name] ) ) {
-                        $msg = self::t_( __METHOD__ . '::nonce-empty' );
+                        $msg = self::t_(__METHOD__ . '__nonce-empty' );
                     } else {
-                        $msg = self::t_( __METHOD__ . '::nonce-invalid' );
+                        $msg = self::t_( __METHOD__ . '__nonce-invalid' );
                     }
                 } else {
                     if ( !isset( $_POST[$nonce_name] ) ) {
@@ -185,32 +168,35 @@ class MetaBox
                         $msg = 'A security problem (invalid nonce) occurred while checking a metabox data';
                     }
                 }
-                sosidee_log( 'Metabox.callbackSave(): empty or invalid nonce' );
+                sosidee_log( 'Metabox::callbackSave() - empty or invalid nonce' );
             }
         } else {
             $post_type = get_post_type_object( $post->post_type );
             if ( !current_user_can( $post_type->cap->edit_post, $post_ID ) ) {
-                $plugin = \SOSIDEE_DYNAMIC_QRCODE\SosPlugin::instance();
-                if ( $plugin::$internationalized !== false) {
-                    $msg = self::t_( __METHOD__ . '::user-unauthorized' );
+                if ( self::plugin()::$internationalized !== false ) {
+                    $msg = self::t_( __METHOD__ . '__user-unauthorized' );
                 } else {
-                    $msg = "You're not authorized to modify metabox content";
+                    $msg = "You're not authorized to modify a metabox content";
                 }
             }
         }
 
         if ( $msg === false ) {
-            $this->loadFromDb($post);
-            $this->loadFromRequest();
-            return call_user_func( $this->callback, $this, $post, $update );
+            if ( is_callable($this->callback) ) {
+                $this->loadFromDb($post);
+                $this->loadFromRequest();
+                return call_user_func( $this->callback, $this, $post, $update );
+            } else {
+                self::msgErr("Metabox callback method not found.");
+            }
         } else {
-            $this->err($msg);
+            self::msgErr($msg);
         }
         return $post_ID;
     }
 
     public function addField( $key, $value = null, $is_checkbox = false ) {
-        $id = "$this->key-" . self::checkId($key);
+        $id = $this->key . '-' . sosidee_check_id($key);
         $field = new Data\MbField( $key, $value, $id, $is_checkbox );
         $this->fields[] = $field;
         return $field;
@@ -218,9 +204,9 @@ class MetaBox
 
     public function getField( $key ) {
         $ret = false;
-        for ( $n=0; $n<count($this->fields); $n++ ) {
-            if ( $this->fields[$n]->key == $key ) {
-                $ret = $this->fields[$n];
+        foreach ( $this->fields as $field ) {
+            if ( $field->key == $key ) {
+                $ret = $field;
                 break;
             }
         }
@@ -231,7 +217,9 @@ class MetaBox
         $ret = false;
         $results = get_post_meta( $post->ID, $this->key, true );
         if ( $results ) {
-            $ret = maybe_unserialize( $results );
+            $ret = is_serialized($results)
+                ? unserialize(trim($results), ['allowed_classes' => false])
+                : $results;
         }
         return $ret;
     }
@@ -244,8 +232,7 @@ class MetaBox
         $results = $this->getFromDb( $post );
         if ( is_array($results) ) {
             foreach ( $results as $key => $value ) {
-                for ( $n=0; $n<count($this->fields); $n++ ) {
-                    $field = $this->fields[$n];
+                foreach ( $this->fields as $field ) {
                     if ( $field->key == $key ) {
                         $field->value = $value;
                     }
@@ -255,11 +242,10 @@ class MetaBox
     }
     
     private function loadFromRequest() {
-        for ( $n=0; $n<count($this->fields); $n++ ) {
-            $field = $this->fields[$n];
+        foreach ( $this->fields as $field ) {
             if ( !$field->isCheckbox ) {
                 if ( isset($_POST[$field->id]) ) {
-                    $field->value = sanitize_text_field( $_POST[$field->id] );
+                    $field->value = sosidee_sanitize_recursive( wp_unslash($_POST[$field->id]) );
                 }
             } else {
                 $field->value = isset( $_POST[$field->id] );
@@ -280,8 +266,7 @@ class MetaBox
         $ret = 0;
         $prev_values = $this->getFromDb( $post );
         $values = array();
-        for ( $n=0; $n<count($this->fields); $n++ ) {
-            $field = $this->fields[$n];
+        foreach ( $this->fields as $field ) {
             $key = $field->key;
             $values[$key] = $field->value;
             if ( !is_array($prev_values) || !array_key_exists($key, $prev_values) || $prev_values[$key] != $field->value ) {
@@ -293,94 +278,5 @@ class MetaBox
         }
         return $ret;
     }
-
-    
-    /**
-     * Display the admin console messages simulating the standard wp layout
-     */
-    public function handleAdminNotices() {
-        if ( !( $messages = get_transient( 'settings_errors' ) ) ) {
-            return;
-        }
-
-        foreach ( $messages as $msg ) {
-            $line = '<div id="setting-error-' . $msg['code'] . '" class="notice notice-' . $msg['type'] . ' settings-error is-dismissible">';
-            $line .= ($msg['type'] == 'error' || $msg['type'] == 'warning') ? "<p><strong>{$msg['message']}</strong></p>" : "<p>{$msg['message']}</p>";
-            $line .= '<button type="button" class="notice-dismiss"><span class="screen-reader-text">Dismiss this notice.</span></button>';
-            $line .= '</div>';
-            echo sosidee_kses( $line );
-        }
-
-        // these should avoid duplicating messages...
-        delete_transient( 'settings_errors' );
-        remove_action( 'admin_notices', array($this, 'handleAdminNotices') );
-    }
-
-
-    /**
-     * Adds an admin console message
-     * Use this in the metabox data checking function of the plugin
-     * in place of self::msgXXX('message'), otherwise the message
-     * will not be displayed
-     *
-     * @param $message
-     */
-    public function info( $message ) {
-        self::msgInfo( $message );
-        $this->setTransient();
-    }
-    public function err( $message ) {
-        self::msgErr( $message );
-        $this->setTransient();
-    }
-    public function ok( $message ) {
-        self::msgOk( $message );
-        $this->setTransient();
-    }
-    public function warn( $message ) {
-        self::msgWarn( $message );
-        $this->setTransient();
-    }
-
-    private function setTransient() {
-        set_transient('settings_errors', get_settings_errors(), 30);
-    }
-
-
-    /**
-     * Template for the displaying function
-     * 
-     * @param \Metabox $metabox : a metabox
-     * @param \WP_Post $post : the post
-     * 
-    public function html( $metabox, $post ) {
-        //get the field by key
-        $field = $metabox->getField('field_key');
-
-        //display the control
-        echo '<input type="text" id="' . esc_attr($field->id) . '" name="' . esc_attr($field->id) . '" value="' . esc_attr($field->value) . '">';
-
-    }
-     */
-
-    /**
-     * Template for the data checking and saving function
-     * 
-    public function callback( $metabox, $post, $update ) {
-        //get the field to check its value
-        $field = $metabox->getField('field_key');
-        if ( $field->value == 'foo' ) {
-            $metabox->err('doh!');
-            //etc.
-        }
-
-        //save the data
-        $res = $metabox->save( $post );
-
-        //to add a message to the admin console
-        $metabox->ok('message'); // etc.
-
-    }
-     */
 
 }

@@ -1,1 +1,1 @@
-Collection of classes that help to separate the plugin structure logic from the WordPress processes logic.
+A set of classes designed to separate plugin structure logic from WordPress process logic.

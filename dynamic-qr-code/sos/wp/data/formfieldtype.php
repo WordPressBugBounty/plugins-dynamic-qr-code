@@ -4,6 +4,7 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
 
 class FormFieldType
 {
+    const LABEL = 0;
     const TEXT = 1;
     const TEXTAREA = 2;
     const CHECK = 3;

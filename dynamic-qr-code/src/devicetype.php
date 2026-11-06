@@ -8,6 +8,16 @@ class DeviceType
     const MOBILE = 1;
     const NOT_MOBILE = -1;
 
+    public static function getValueList( $skip_unknown = false ) {
+        $ret = array();
+        if ( $skip_unknown === false ) {
+            $ret[] = self::UNKNOWN;
+        }
+        $ret[] = self::MOBILE;
+        $ret[] = self::NOT_MOBILE;
+        return $ret;
+    }
+
     public static function getDescription( $value ) {
         $ret = '?';
         switch ( $value ) {
@@ -24,16 +34,28 @@ class DeviceType
         return $ret;
     }
 
-    public static function getlist( $caption = false ) {
+    public static function getDescList( $skip_unknown = false ) {
         $ret = array();
-
-        if ($caption !== false) {
-            $ret[self::UNKNOWN] = $caption;
+        $values = self::getValueList($skip_unknown);
+        foreach ( $values as $value ) {
+            $ret[] = self::getDescription($value);
         }
-        $ret[self::MOBILE] = 'only mobile';
-        $ret[self::NOT_MOBILE] = 'only not mobile';
-
         return $ret;
     }
+
+
+    public static function getList( $caption = false ) {
+        $ret = array();
+
+        if ( $caption !== false ) {
+            $ret[self::UNKNOWN] = $caption;
+        }
+        $values = self::getValueList(true);
+        foreach ( $values as $value ) {
+            $ret[$value] = self::getDescription($value);
+        }
+        return $ret;
+    }
+
 
 }

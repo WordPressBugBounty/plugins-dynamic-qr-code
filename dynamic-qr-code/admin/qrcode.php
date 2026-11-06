@@ -9,12 +9,15 @@ $cypher = $form->showCypher;
 
 $plugin->config->load(); // load current configuration
 $code_shared = $plugin->config->sharedCodeEnabled->value;
-$mfa_enabled = $plugin->config->mfaEnabled->value;
+
 $chkMode = $plugin->config->formCheckMode->value;
 $anyQrHideEnabled = $plugin->config->anyQrHideEnabled->value;
 //$hideContentEnabled = $anyQrHideEnabled || $form->cypher->value != '';
 
-echo $plugin->help('qr-code-edit');
+//$mfa_enabled = $plugin->config->mfaEnabled->value;
+$mfa_enabled = false;
+
+echo wp_kses( $plugin->help('qr-code-edit'), sosidee_allowed_html() );
 
 $title = 'QR-Code Edit';
 if ( $form->id->value == 0 ) {
@@ -109,7 +112,7 @@ $plugin->htmlAdminPageTitle($title);
             </td>
         </tr>
         <tr>
-            <th scope="row" class="middled">Max total scans</th>
+            <th scope="row" class="topped">Max total scans</th>
             <td class="middled">
                 <?php $form->htmlMaxScanTot(); ?>
             </td>
@@ -132,6 +135,24 @@ $plugin->htmlAdminPageTitle($title);
                 <?php $form->htmlImgBackColor(); ?>
             </td>
         </tr>
+        <tr>
+            <th scope="row" class="topped">Image quality</th>
+            <td class="middled">
+                <?php $form->htmlQualityLevel(); ?>
+            </td>
+        </tr>
+        <tr>
+            <th scope="row" class="topped">Image size</th>
+            <td class="middled">
+                <?php $form->htmlImgSize(); ?>
+            </td>
+        </tr>
+        <tr>
+            <th scope="row" class="topped">Image border</th>
+            <td class="middled">
+                <?php $form->htmlImgPad(); ?>
+            </td>
+        </tr>
     <?php if ( $anyQrHideEnabled ) { ?>
         <tr>
             <th scope="row" class="middled">URL for unauthorized access</th>
@@ -140,14 +161,28 @@ $plugin->htmlAdminPageTitle($title);
             </td>
         </tr>
     <?php } ?>
-    <?php if ( $mfa_enabled ) { ?>
+        <?php if ( $mfa_enabled ) { ?>
+            <tr>
+                <th scope="row" class="middled">Only MyFast APP</th>
+                <td class="middled">
+                    <?php $form->htmlOnlyMFA(); ?>
+                </td>
+            </tr>
+        <?php } ?>
         <tr>
-            <th scope="row" class="middled">Only MyFast APP</th>
+            <th scope="row" class="topped">Add query parameter</th>
             <td class="middled">
-                <?php $form->htmlOnlyMFA(); ?>
+                <?php $form->htmlRedirKeyEnabled(); ?>
             </td>
         </tr>
-    <?php } ?>
+        <?php if ( $plugin->isPro() ) { ?>
+            <tr>
+                <th scope="row" class="topped">Custom parameter name</th>
+                <td class="middled">
+                    <?php $form->htmlRedirKeyName(); ?>
+                </td>
+            </tr>
+        <?php } ?>
         <tr>
             <th scope="row" class="middled">Disabled</th>
             <td class="middled">
@@ -160,17 +195,20 @@ $plugin->htmlAdminPageTitle($title);
     <table role="presentation" style="margin-top: 1em;">
         <tbody>
         <tr>
-            <td style="width: 120px;">
-                <?php $form->htmlDelete( 'delete', 'Are you sure to delete it?' ); ?>
+            <td style="width: 140px;">
+                <?php $form->htmlEliminate(); ?>
             </td>
-            <td style="width: 120px;">
+            <td style="width: 140px;">
                 <?php $plugin->formEditQrCode->htmlButtonLink(0); ?>
             </td>
-            <td style="width: 120px;">
+            <td style="width: 140px;">
                 <?php $form->htmlSave('save'); ?>
             </td>
-            <td style="width: 120px;">
+            <td style="width: 140px;">
                 <?php $form->htmlDuplicate(); ?>
+            </td>
+            <td style="width: 140px;">
+                <?php $form->htmlExport(); ?>
             </td>
         </tr>
         </tbody>
@@ -216,7 +254,7 @@ $plugin->htmlAdminPageTitle($title);
     <nav class="nav-tab-wrapper">
         <a id="a-std" href="javascript:void(0);" class="nav-tab<?php echo !$cypher ? ' nav-tab-active' : ''; ?>">Standard QR code</a>
         <a id="a-enh" href="javascript:void(0);" class="nav-tab<?php echo $cypher ? ' nav-tab-active' : ''; ?>">Enhanced QR code</a>
-        <?php echo $plugin->help('standard-enhanced-image', 'vertical-align: text-bottom; margin: 4px; margin-left: 1em;'); ?>
+        <?php echo wp_kses( $plugin->help('standard-enhanced-image', 'vertical-align: text-bottom; margin: 4px; margin-left: 1em;'), sosidee_allowed_html() ); ?>
     </nav>
     <div id="div-std" style="display: <?php echo !$cypher ? 'block' : 'none'; ?>;">
         <table class="form-table sqc" role="presentation">
@@ -254,6 +292,7 @@ $plugin->htmlAdminPageTitle($title);
         if ( $form->cypher->value != '' ) {
             $form->htmlImgQR( true );
         }
+        if ( $form->id->value > 0 ) {
         ?>
         <table role="presentation" style="margin-top: 1em;">
             <tbody>
@@ -273,7 +312,10 @@ $plugin->htmlAdminPageTitle($title);
             </tbody>
         </table>
 
-    <?php if ( !$anyQrHideEnabled ) { ?>
+    <?php
+        }
+
+        if ( !$anyQrHideEnabled ) { ?>
         <table class="form-table sqc" role="presentation">
             <tbody>
             <tr>
@@ -312,12 +354,17 @@ $plugin->htmlAdminPageTitle($title);
     $form->htmlCypher();
     $form->htmlClose();
 
-    /*
-    if ( !$plugin->hasDuplicate() ) {
-        echo '<hr style="margin-left:0;width:50%;">';
-        echo $plugin->pro() . ' available in the PRO version';
-    }
-    */
+if (!$plugin->isPro()) {
+    echo '<hr style="margin-left:0;width:50%;">';
+    echo '<p>';
+    echo $plugin->pro();
+    echo ' available in the PRO version';
+    echo '</p>';
+    echo '<p>';
+    echo $plugin->pro('color: #990099;', 'editable in the PRO version');
+    echo ' editable in the PRO version';
+    echo '</p>';
+}
 
 ?>
 

@@ -19,7 +19,7 @@ class Api
         echo '<style>body{background-color:#000000;color:#ffffff;}</style>';
 
         echo '<div style="display: flex; justify-content: center;">';
-            echo self::getLogo();
+            echo wp_kses( self::getLogo(), sosidee_allowed_html() );
         echo '</div>';
         echo '<div style="text-align: center;">';
             echo '<h1>' . esc_html( self::plugin()->name ) . '</h1>';

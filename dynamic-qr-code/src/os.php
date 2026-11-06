@@ -2,16 +2,27 @@
 namespace SOSIDEE_DYNAMIC_QRCODE\SRC;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
-use SOSIDEE_DYNAMIC_QRCODE\SOS\Mobile;
+use SOSIDEE_DYNAMIC_QRCODE\SOS\WP\Mobile;
 
 class OS
 {
 
+    const NONE = -1;
     const UNKNOWN = 0;
     const ANDROID = 1;
     const IOS = 2;
     const OTHER = 3;
 
+    public static function getValueList( $skip_unknown = false ) {
+        $ret = array();
+        if ( $skip_unknown === false ) {
+            $ret[] = self::UNKNOWN;
+        }
+        $ret[] = self::ANDROID;
+        $ret[] = self::IOS;
+        $ret[] = self::OTHER;
+        return $ret;
+    }
 
     public static function isValid( $value ) {
         if ( $value != self::UNKNOWN) {
@@ -55,4 +66,14 @@ class OS
         }
         return $ret;
     }
+
+    public static function getDescList( $skip_unknown = false ) {
+        $ret = array();
+        $values = self::getValueList($skip_unknown);
+        foreach ( $values as $value ) {
+            $ret[] = self::getDescription($value);
+        }
+        return $ret;
+    }
+
 }

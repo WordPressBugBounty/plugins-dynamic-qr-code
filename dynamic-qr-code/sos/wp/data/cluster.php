@@ -1,7 +1,8 @@
 <?php
 namespace SOSIDEE_DYNAMIC_QRCODE\SOS\WP\DATA;
-use SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
+
+use SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP;
 
 /**
  * Base class for the data classes 'Section' and 'Group'
@@ -9,13 +10,10 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
  */
 class Cluster
 {
-    use SOS_WP\TProperty {
-        SOS_WP\TProperty::__set as __setProp;
-    }
+    use SOS_WP\TBase;
     use SOS_WP\TTranslation;
 
-    protected static $plugin = null;
-
+    public $key;
     public $title;
     public $description;
     public $encrypted;
@@ -25,9 +23,8 @@ class Cluster
     public $page;
     public $validate;
 
-    public function __construct($key, $title) {
-        $this->_addProperty('key', '');
-        $this->key = $key;
+    public function __construct( $key, $title ) {
+        $this->key = sosidee_check_id($key);
 
         $this->title = $title;
 
@@ -36,20 +33,14 @@ class Cluster
 
         $this->page = '';
         $this->validate = null;
-        $this->fields = array();
-
-        if ( is_null(self::$plugin) ) {
-            self::$plugin = \SOSIDEE_DYNAMIC_QRCODE\SosPlugin::instance();
-        }
+        $this->fields = [];
     }
 
-    public function __set($name, $value) {
-        switch ($name) {
-            case 'key':
-                $value = self::checkId($value);
-                break;
+    private function createField( $key, $title, $value, $type ) {
+        if ( $type == FieldType::COMBOBOX ) {
+            self::plugin()->addFormJs();
         }
-        return $this->__setProp($name, $value);
+        return Field::create( $this, $key, $title, $value, $type );
     }
 
     /**
@@ -62,34 +53,28 @@ class Cluster
      * 
      * $return a Field object
      */
-    public function addField( $name, $title, $value = null, $type = FieldType::TEXT ) {
-        $field = Field::create($this, $name, $title, $value, $type);
+    public function addField( $key, $title, $value = null, $type = FieldType::TEXT ) {
+        $field = $this->createField( $key, $title, $value, $type );
         $this->fields[] = $field;
         return $field;
     }
 
-    public function addFieldNumber( $name, $title, $value = null, $min = 0, $max = PHP_INT_MAX, $step = 1 ) {
-        $ret = $this->addField( $name, $title, $value, FieldType::NUMBER );
-        $ret->min = $min;
-        $ret->max = $max;
-        $ret->step = $step;
-        return $ret;
-    }
-
-    public function addFieldColor( $name, $title, $value = null ) {
-        return $this->addField( $name, $title, $value, FieldType::COLOR );
-    }
-
-    public function addFieldSelect( $name, $title, $value = null ) {
-        return $this->addField( $name, $title, $value, FieldType::SELECT );
+    public function insertField( $index, $key, $title, $value = null, $type = FieldType::TEXT ) {
+        $field = $this->createField( $key, $title, $value, $type );
+        $index = max(0, $index);
+        if ( $index < count($this->fields) ) {
+            array_splice($this->fields, $index, 0, [$field]);
+        } else {
+            $this->fields[] = $field;
+        }
+        return $field;
     }
 
     protected function getFieldIndex( $key ) {
         $ret = false;
-        for ( $n=0; $n<count($this->fields); $n++ ) {
-            $field = $this->fields[$n];
-            if ( $field->key == $key ) {
-                $ret = $n;
+        foreach ( $this->fields as $index => $field ) {
+            if ( $field->key === $key ) {
+                $ret = $index;
                 break;
             }
         }
@@ -98,9 +83,8 @@ class Cluster
 
     public function getField( $key ) {
         $ret = null;
-        for ( $n=0; $n<count($this->fields); $n++ ) {
-            $field = $this->fields[$n];
-            if ( $field->key == $key ) {
+        foreach ( $this->fields as $field ) {
+            if ( $field->key === $key ) {
                 $ret = $field;
                 break;
             }
@@ -115,11 +99,7 @@ class Cluster
      * 
      */
     public function setPage( $page ) {
-        if ( is_string($page) ) {
-            $this->page = $page;
-        } else {
-            $this->page = $page->key;
-        }
+        $this->page = ($page instanceof SOS_WP\BE\Page) ? $page->key : (string) $page;
     }
 
     /**
@@ -132,20 +112,21 @@ class Cluster
     protected function translate() {
         $this->title = self::t_( $this->title );
         $this->description = self::t_( $this->description );
-        
-        for ( $n=0; $n<count($this->fields); $n++ ) {
-            $field = $this->fields[$n];
+
+        foreach ( $this->fields as $field ) {
             $field->translate();
         }
     }
 
     protected function initialize() {
-        $plugin = self::$plugin;
-        if ( $plugin::$internationalized ) {
+        if ( self::plugin()::$internationalized ) {
             $this->translate();
         }
 
-        $callback = $this->description != '' ? function() { echo sosidee_kses($this->description); } : null;
+        $me = $this;
+        $callback = $this->description != '' ? function() use ($me) {
+                echo wp_kses( $me->description, sosidee_allowed_html() );
+            } : null;
 
         add_settings_section(
                  $this->key
@@ -158,8 +139,7 @@ class Cluster
     public function register() {
 
         $this->initialize();
-        for ( $n=0; $n<count($this->fields); $n++ ) {
-            $field = $this->fields[$n];
+        foreach ( $this->fields as $field ) {
             if ( $field->encrypted ) {
                 $this->encrypted = true;
             }
@@ -167,7 +147,7 @@ class Cluster
         }
     }
     
-    public function html($no_submit = false) {
+    public function html( $no_submit = false ) {
         $this->load();
 
         settings_fields( $this->key );

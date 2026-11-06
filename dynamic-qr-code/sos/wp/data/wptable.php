@@ -5,11 +5,11 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
 
 class WpTable
 {
-    use SOS_WP_ROOT\TProperty;
 
     protected $columns;
     protected $primaryKey;
     public $name;
+    public $charset;
 
     public function __construct($name) {
         $this->primaryKey = false;
@@ -18,58 +18,57 @@ class WpTable
         $this->columns = array();
     }
 
-    public function addColumn($name, $type, $length = '') {
-        $ret = new WpColumn($this->name, $name, $type, $length);
+    public function addColumn( $name, $type, $length = '' ) {
+        $ret = new WpColumn( $name, $type, $length );
         $this->columns[] = $ret;
-        $this->_addProperty($name, $ret);
         return $ret;
     }
 
-    public function addID($name = 'id') {
-        $ret = $this->addColumn($name, WpColumnType::INTEGER);
+    public function addID( $name = 'id' ) {
+        $ret = $this->addColumn( $name, WpColumnType::INTEGER );
         $ret->autoIncrement = true;
         $this->primaryKey = $name;
         return $ret;
     }
 
-    public function addInteger($name) {
-        return $this->addColumn($name, WpColumnType::INTEGER);
+    public function addInteger( $name ) {
+        return $this->addColumn( $name, WpColumnType::INTEGER );
     }
 
-    public function addTinyInteger($name) {
-        return $this->addColumn($name, WpColumnType::TINY_INTEGER);
+    public function addTinyInteger( $name ) {
+        return $this->addColumn( $name, WpColumnType::TINY_INTEGER );
     }
 
-    public function addSmallInteger($name) {
-        return $this->addColumn($name, WpColumnType::SMALL_INTEGER);
+    public function addSmallInteger( $name ) {
+        return $this->addColumn( $name, WpColumnType::SMALL_INTEGER );
     }
 
-    public function addBoolean($name) {
-        return $this->addColumn($name, WpColumnType::BOOLEAN);
+    public function addBoolean( $name ) {
+        return $this->addColumn( $name, WpColumnType::BOOLEAN );
     }
 
-    public function addCurrency($name) {
-        return $this->addColumn($name, WpColumnType::CURRENCY);
+    public function addCurrency( $name ) {
+        return $this->addColumn( $name, WpColumnType::CURRENCY );
     }
 
-    public function addVarChar($name, $length = '') {
-        return $this->addColumn($name, WpColumnType::VARCHAR, $length);
+    public function addVarChar( $name, $length = '' ) {
+        return $this->addColumn( $name, WpColumnType::VARCHAR, $length );
     }
 
-    public function addDateTime($name) {
-        return $this->addColumn($name, WpColumnType::DATETIME);
+    public function addDateTime( $name ) {
+        return $this->addColumn( $name, WpColumnType::DATETIME );
     }
 
-    public function addTime($name) {
-        return $this->addColumn($name, WpColumnType::TIME);
+    public function addTime( $name ) {
+        return $this->addColumn( $name, WpColumnType::TIME );
     }
 
 
-    protected function getColumnByName($name) {
+    protected function getColumnByName( $name ) {
         $ret = false;
-        for ($n=0; $n<count($this->columns); $n++) {
-            if ( strcasecmp($this->columns[$n]->name, $name) == 0 ) {
-                $ret = $this->columns[$n];
+        foreach ( $this->columns as $column ) {
+            if ( strcasecmp($column->name, $name) == 0 ) {
+                $ret = $column;
                 break;
             }
         }
@@ -77,22 +76,34 @@ class WpTable
     }
 
     public function getCommandSql() {
-        $ret = "CREATE TABLE {$this->name} (";
+        $ret = "CREATE TABLE `{$this->name}` (";
 
         $count = count($this->columns);
         if ( $count > 0 ) {
-            for ($n=0; $n<$count; $n++) {
+            for ( $n=0; $n<$count; $n++ ) {
                 if ( $n > 0 ) {
                     $ret .= ",";
                 }
                 $ret .= PHP_EOL . $this->columns[$n]->getCommandSql();
             }
-            if ($this->primaryKey !== false) {
-                $ret .= "," . PHP_EOL . "PRIMARY KEY  ({$this->primaryKey})";
+            if ( !empty($this->primaryKey) ) {
+                $ret .= "," . PHP_EOL . "PRIMARY KEY  (`{$this->primaryKey}`)";
             }
         }
-        $ret .= PHP_EOL . ")";
+        $ret .= PHP_EOL . ") " . $this->charset;
         return $ret;
+    }
+
+    public function getSchemaHash() {
+        $sql = $this->getCommandSql();
+        $sql = preg_replace('/--.*$/m', '', $sql);       // remove comments --
+        $sql = preg_replace('/\/\*.*?\*\//s', '', $sql); // remove comments /* */
+        // substitute tab and newline with a space
+        $sql = str_replace(["\r\n", "\r", "\n", "\t"], ' ', $sql);
+        // substitute multiple spaces with single ones
+        $sql = preg_replace('/\s+/', ' ', $sql);
+        $sql = trim($sql);
+        return md5($sql);
     }
 
     private function getDataFormat( &$data ) {
@@ -100,15 +111,15 @@ class WpTable
         foreach ( $data as $name => $value ) {
             $column = $this->getColumnByName($name);
             if ( $column !== false ) {
-                if ( $column->type == WpColumnType::DATETIME || $column->type == WpColumnType::TIMESTAMP ) {
-                    $data[$name] = $column->getDatetimeValueAsString( $value );
+                if ( in_array( $column->type, [ WpColumnType::DATETIME, WpColumnType::TIMESTAMP] ) ) {
+                    $data[$name] = $column->getDatetimeValueAsSqlString( $value );
                 } else if ( $column->type == WpColumnType::TIME ) {
-                    $data[$name] = $column->getTimeValueAsString( $value );
+                    $data[$name] = $column->getTimeValueAsSqlString( $value );
                 }
                 $ret[] = $column->getQueryFormat();
             } else {
                 $ret = false;
-                sosidee_log("WpTable.getDataFormat() :: getColumnByName($name) returned false for table {$this->name}.");
+                sosidee_log("WpTable::getDataFormat() - getColumnByName($name) returned false for table {$this->name}.");
                 break;
             }
         }
@@ -120,14 +131,14 @@ class WpTable
         foreach ( $filters as $name => $value ) {
             $column = $this->getColumnByName( $name );
             if ($column !== false) {
-                if ( $column->type == WpColumnType::DATETIME || $column->type == WpColumnType::TIMESTAMP ) {
-                    $filters[$name] = $column->getDatetimeValueAsString($value);
+                if ( in_array( $column->type, [ WpColumnType::DATETIME, WpColumnType::TIMESTAMP] ) ) {
+                    $filters[$name] = $column->getDatetimeValueAsSqlString($value);
                 } else if ( $column->type == WpColumnType::TIME  ) {
-                    $filters[$name] = $column->getTimeValueAsString($value);
+                    $filters[$name] = $column->getTimeValueAsSqlString($value);
                 }
                 $ret[] = $column->getQueryFormat();
             } else {
-                $ret = true;
+                $ret = false;
                 sosidee_log("WpTable.getFilterFormat() :: getColumnByName($name) returned false for table {$this->name}.");
                 break;
             }
@@ -141,7 +152,7 @@ class WpTable
      *      e.g.
      *          'foo' => 123        means foo = 123
      *          'foo[>=]' => 123    means foo >= 123
-     * @param array $orders mixed array [ column_name1, column_name2 => direction ] e.g. [ 'foo', 'bar' => 'DESC' ] note: foo is ASC (default)
+     * @param array $orders mixed array [ column_name1, column_name2 => direction ] e.g. [ 'foo', 'bar' => 'DESC' ] note: default direction is ASC
      * @param bool $raw_result if true then results will not be converted to native data-types (using table fields)
      * @return array|false array of objects | false
      */
@@ -164,30 +175,39 @@ class WpTable
             if ( $p1 !== false ) {
                 $name = trim( substr($key, 0, $p1) );
                 $p2 = strrpos($key, ']');
-                $operator = trim( substr($key, $p1+1, $p2 - $p1 - 1) );
+                $operator = trim( substr($key, $p1 + 1, $p2 - $p1 - 1) );
             }
             $clauses[$index]['name'] = $name;
             $clauses[$index]['operator'] = $operator;
 
             $column = $this->getColumnByName($name);
             if ( $column !== false ) {
-                if ( $column->type == WpColumnType::DATETIME || $column->type == WpColumnType::TIMESTAMP ) {
-                    $values[$index] = $column->getDatetimeValueAsString($value);
-                } else if ( $column->type == WpColumnType::TIME  ) {
-                        $values[$index] = $column->getTimeValueAsString( $value );
+                if ( in_array($column->type, [WpColumnType::DATETIME, WpColumnType::TIMESTAMP]) ) {
+                    $values[$index] = $column->getDatetimeValueAsSqlString($value);
+                } elseif ( $column->type == WpColumnType::TIME  ) {
+                    $values[$index] = $column->getTimeValueAsSqlString( $value );
                 } else {
-                    if ( !is_array($value) ) {
-                        $values[$index] = $value;
-                    } else {
-                        $values[$index] = '{_(' . implode(',', $value) . ')_}';
+                    if ( is_array($value) ) {
+                        if ( in_array($column->type, [WpColumnType::TEXT, WpColumnType::VARCHAR]) ) {
+                            for ( $i=0; $i<count($value); $i++ ) {
+                                $value[$i] = esc_sql((string)$value[$i]);
+                            }
+                        } elseif ( $column->type == WpColumnType::BOOLEAN ) {
+                            for ( $i=0; $i<count($value); $i++ ) {
+                                $value[$i] = boolval($value[$i]) ? 1 : 0;
+                            }
+                        }
                         $filter_in = true;
                     }
+                    $values[$index] = $value;
                 }
                 if ( !is_array($value) ) {
-                    $clauses[$index]['format'] = $column->getQueryFormat();
+                    $format = $column->getQueryFormat();
                 } else {
-                    $clauses[$index]['format'] = '%s';
+                    $placeholders = array_fill(0, count($value), $column->getQueryFormat());
+                    $format = "(" . implode(',', $placeholders) . ")";
                 }
+                $clauses[$index]['format'] = $format;
             } else {
                 $error = true;
                 sosidee_log("WpTable.querySelect() :: getColumnByName($name) returned false for table {$this->name}.");
@@ -195,70 +215,64 @@ class WpTable
             }
         }
         if( !$error ) {
-            $sql = "SELECT {$what} FROM {$this->name}";
+            $sql = "SELECT {$what} FROM `{$this->name}`";
             if ( count($clauses) > 0 ) {
                 $where = '';
-                for ( $n=0; $n<count($clauses); $n++ ) {
-                    if ($where != '') {
+                foreach ( $clauses as $clause ) {
+                    if ( $where != '' ) {
                         $where .= ' AND ';
                     }
-                    $clause = $clauses[$n];
-                    $where .= "{$clause['name']}{$clause['operator']}{$clause['format']}";
+                    $where .= "`{$clause['name']}`{$clause['operator']}{$clause['format']}";
                 }
                 $sql .= " WHERE {$where}";
             }
             if ( count($orders) > 0 ) {
-                $order_list = '';
-                foreach ($orders as $key => $value) {
-                    if ($order_list != '') {
-                        $order_list .= ', ';
-                    }
-                    if ( is_int($key) ) {
-                        $order_list .= $value;
-                    } else {
-                        $order_list .= "{$key} {$value}";
+                $order_clauses = [];
+                foreach ( $orders as $key => $value ) {
+                    $column_name = is_int($key) ? $value : $key;
+                    $direction = is_int($key) ? 'ASC' : strtoupper($value);
+                    if ( $this->getColumnByName($column_name) !== false && in_array( $direction, ['ASC', 'DESC'] ) ) {
+                        $order_clauses[] = "`" . esc_sql($column_name) . "` " . $direction;
                     }
                 }
-                $sql .= " ORDER BY {$order_list}";
+                if (!empty($order_clauses)) {
+                    $sql .= " ORDER BY " . implode(', ', $order_clauses);
+                }
             }
 
             if ( count($values) > 0) {
-                $query = $wpdb->prepare($sql, $values);
                 if ( $filter_in ) {
-                    $query = str_replace([" IN '{_(", ")_}'"], [" IN (", ")"], $query);
+                    // appiattisce l'array per gestire il filtro 'IN (...)'
+                    $values = array_merge(...array_map(fn($i) => is_array($i) ? $i : [$i], $values));
                 }
+                $query = $wpdb->prepare($sql, $values);
             } else {
                 $query = $sql;
             }
 
             $results = $wpdb->get_results($query, ARRAY_A); // ARRAY_A | ARRAY_N | OBJECT (default) | OBJECT_K
             if ( is_array($results) ) {
-                if ( $raw_result == false) {
-                    if ( count($results) > 0 ) {
-                        for ( $n=0; $n<count($results); $n++ ) {
-                            $values = array();
-                            $columns = &$results[$n]; //columns in the n^th row
-                            foreach ( $columns as $name => $value ) {
-                                $wpColumn = $this->getColumnByName($name);
-                                if ( $wpColumn !== false ) {
-                                    $values[$name] = $wpColumn->getNativeValueFromString( $value );
-                                } else {
-                                    sosidee_log( "WpTable.querySelect(): returned column {$name} not found in the definition of table {$this->name}." );
-                                }
+                if ( $raw_result == false && count($results) > 0 ) {
+                    $typed_results = array();
+                    foreach ( $results as $data ) {
+                        $row = new \stdClass();
+                        foreach ( $data as $name => $value ) {
+                            $wpColumn = $this->getColumnByName($name);
+                            if ( $wpColumn !== false ) {
+                                $row->{$name} = $wpColumn->getNativeValueFromString( $value );
+                            } else {
+                                $row->{$name} = $value; //could be a JOIN or an alias...
+                                sosidee_log( "WpTable.querySelect(): returned column {$name} not found in the definition of table {$this->name}." );
                             }
-                            $columns = json_decode( json_encode($columns), false );
-                            // values must be assigned after the column conversion to object in order
-                            // to prevent datetime values to be converted to standard objects (and then methods to be lost like tears in rain)
-                            foreach ( $columns as $name => $value ) {
-                                $columns->{$name} = $values[$name];
-                            }
-                            unset($columns);
                         }
+                        $typed_results[] = $row;
                     }
+                    $ret = $typed_results;
+                } else {
+                    $ret = $results;
                 }
-                $ret = $results;
             } else {
-                sosidee_log( "WpTable.querySelect() :: wpdb.get_results($query) did not return an array:" . print_r($results, true) );
+                sosidee_log( "WpTable::querySelect() - wpdb.get_results($query) did not return an array:" . print_r($results, true) );
             }
         }
         return $ret;
@@ -286,13 +300,13 @@ class WpTable
      */
     public function count( $filters = [] ) {
         $field = $this->name .  "_count";
-        $results = $this->querySelect( "COUNT(*) AS {$field}", $filters, [], true );
+        $results = $this->querySelect( "COUNT(*) AS `{$field}`", $filters, [], true );
         if ( is_array($results) && count($results) == 1 ) {
             $row = $results[0];
             if ( isset($row[$field]) ) {
                 return intval($row[$field]);
             } else {
-                sosidee_log( "WpTable.count() :: querySelect() did not return the field {$field}: " . print_r($results, true) );
+                sosidee_log( "WpTable::count() - querySelect() did not return the field {$field}: " . print_r($results, true) );
                 return false;
             }
         } else {
@@ -311,8 +325,7 @@ class WpTable
 
         $ret = false;
 
-        for ($n=0; $n<count($this->columns); $n++) {
-            $column = $this->columns[$n];
+        foreach ( $this->columns as $column ) {
             if ( $column->currentTimestamp && !array_key_exists($column->name, $data) ) {
                 $data[$column->name] = sosidee_current_datetime();
             }
@@ -323,10 +336,10 @@ class WpTable
             if ( $wpdb->insert( $this->name, $data, $data_formats ) !== false ) {
                     $ret = $wpdb->insert_id;
             } else {
-                sosidee_log("WpTable.insert() :: wpdb.insert($this->name, \$data, \$formats) returned false for \$data: " .  print_r($data, true) . " and \$data_formats:" . print_r($data_formats, true) );
+                sosidee_log("WpTable::insert() - wpdb.insert($this->name, \$data, \$formats) returned false for \$data: " .  print_r($data, true) . " and \$data_formats:" . print_r($data_formats, true) );
             }
         } else {
-            sosidee_log("WpTable.insert() :: problem with table {$this->name}, \$data: " . print_r($data, true) . " and \$data_formats:" . print_r($data_formats, true) );
+            sosidee_log("WpTable::insert() - problem with table {$this->name}, \$data: " . print_r($data, true) . " and \$data_formats:" . print_r($data_formats, true) );
         }
         return $ret;
     }
@@ -338,9 +351,10 @@ class WpTable
      * @param array $filters : associative array [ column_name => value ]
      *      e.g.
      *          'foo' => 123        means foo = 123
-     * @return bool
+     * @param bool $return_count : if true returns int (number of updated rows), otherwise bool
+     * @return bool | int
      */
-    public function update( $data, $filters ) {
+    public function update( $data, $filters, $return_count = false ) {
         global $wpdb;
 
         $ret = false;
@@ -351,13 +365,14 @@ class WpTable
             $filter_formats = array();
         }
         if ( $data_formats !== false && $filter_formats !== false ) {
-            if ( $wpdb->update( $this->name, $data, $filters, $data_formats, $filter_formats ) !== false ) {
-                $ret = true;
+            $result = $wpdb->update( $this->name, $data, $filters, $data_formats, $filter_formats );
+            if ( $result !== false ) {
+                $ret = $return_count ? $result : true;
             } else {
-                sosidee_log("WpTable.update() :: wpdb.update($this->name, \$data, \$filters, \$formats, \$filter_formats) returned false for \$data: " .  print_r($data, true) . ", \$filters:" . print_r($filters, true) . ", \$data_formats:" . print_r($data_formats, true) . " and \$filter_formats:" . print_r($filter_formats, true) );
+                sosidee_log("WpTable::update() - wpdb.update($this->name, \$data, \$filters, \$formats, \$filter_formats) returned false for \$data: " .  print_r($data, true) . ", \$filters:" . print_r($filters, true) . ", \$data_formats:" . print_r($data_formats, true) . " and \$filter_formats:" . print_r($filter_formats, true) );
             }
         } else {
-            sosidee_log("WpTable.update() :: problem with table {$this->name}, \$data: " . print_r($data, true) . ", \$filters:" . print_r($filters, true) . ", \$data_formats:" . print_r($data_formats, true) . " and \$filter_formats:" . print_r($filter_formats, true) );
+            sosidee_log("WpTable::update() - problem with table {$this->name}, \$data: " . print_r($data, true) . ", \$filters:" . print_r($filters, true) . ", \$data_formats:" . print_r($data_formats, true) . " and \$filter_formats:" . print_r($filter_formats, true) );
         }
         return $ret;
     }
@@ -372,42 +387,40 @@ class WpTable
         global $wpdb;
 
         $ret = false;
-        $error = false;
         $filter_formats = $this->getFilterFormat( $filters );
         if ( $filter_formats !== false ) {
             if ( $wpdb->delete( $this->name, $filters, $filter_formats ) !== false ) {
                 $ret = true;
             } else {
-                sosidee_log("WpTable.delete() :: wpdb.delete($this->name, \$filters, \$filter_formats) returned false for \$filters:" . print_r($filters, true) . " and \$filter_formats:" . print_r($filter_formats, true) );
+                sosidee_log("WpTable::delete() - wpdb.delete($this->name, \$filters, \$filter_formats) returned false for \$filters:" . print_r($filters, true) . " and \$filter_formats:" . print_r($filter_formats, true) );
             }
         } else {
-            sosidee_log("WpTable.delete() :: problem with table {$this->name}, \$filters:" . print_r($filters, true) . " and \$filter_formats:" . print_r($filter_formats, true) );
+            sosidee_log("WpTable::delete() - problem with table {$this->name}, \$filters:" . print_r($filters, true) . " and \$filter_formats:" . print_r($filter_formats, true) );
         }
         return $ret;
     }
 
     /***
-     * multiple insert
-     * @param $data : array of associative arrays - e.g. [ ['x'=>1, 'y'=>'foo'], ['x'=>6, 'y'=>'bar'] ]
+     * multiple insert in a table
+     * @param array $data array of associative arrays - e.g. [ ['x'=>1, 'y'=>'foo'], ['x'=>6, 'y'=>'bar'] ]
      * @return false|int : number of rows affected
      ***/
     public function inserts( $rows ) {
-        if (count($rows) == 0) {
-            sosidee_log("WpDatabase.inserts() : rows is empty.");
+        if ( empty($rows) ) {
+            sosidee_log("WpDatabase::inserts() - array rows has no element.");
             return false;
         }
         global $wpdb;
 
-        $sql = "INSERT INTO {$this->name} (";
-        $sql .= implode( ",", array_keys($rows[0]) );
-        $sql .= ") VALUES";
-        for ($n=0; $n<count($rows); $n++) {
-            if ($n > 0) {
+        $columns = array_map( fn($col) => "`" . trim($col, '`') . "`", array_keys($rows[0]) );
+        $sql = "INSERT INTO `{$this->name}` (". implode( ",", $columns ) . ") VALUES ";
+        for ( $n=0; $n<count($rows); $n++ ) {
+            if ( $n > 0 ) {
                 $sql .= ",";
             }
             $data = $rows[$n];
             $data_formats = $this->getDataFormat( $data );
-            $formatted_sql = " (" . implode(",", $data_formats) . ")" ;
+            $formatted_sql = "(" . implode(",", $data_formats) . ")" ;
             $values = array();
             foreach ( $data as $_ => $value ) {
                 $values[] = $value;
@@ -417,7 +430,7 @@ class WpTable
         $ret = $wpdb->query($sql);
         if ( is_null($ret) ) {
             $ret = false;
-            sosidee_log("WpTable.inserts() :: wpdb.query($sql) returned null.");
+            sosidee_log("WpTable::inserts() - wpdb.query($sql) returned null.");
         }
         return $ret;
     }
@@ -430,27 +443,43 @@ class WpTable
                 return $results[0];
             } else {
                 if ( count($results) > 1 ) {
-                    sosidee_log("WpTable.get() :: select() in table {$this->name} returned a wrong array length: " . count($results) . " (requested: 1) for \$filters: " . print_r($filters, true) );
+                    sosidee_log("WpTable::get() - select() in table {$this->name} returned a wrong array length: " . count($results) . " (requested: 1) for \$filters: " . print_r($filters, true) );
                 }
                 return false;
             }
         } else {
-            sosidee_log("WpTable.get() :: select() in table {$this->name} did not return an array for \$filters: " . print_r($filters, true) );
+            sosidee_log("WpTable::get() - select() in table {$this->name} did not return an array for \$filters: " . print_r($filters, true) );
             return false;
         }
     }
 
     /**
-     * @param array $fields: array [ column_name_1, column_name_2, ... ]
-     * @param array $filters: associative array [ column_name => value ]
+     * @param array $columns array [ column_name_1, column_name_2, ... ]
+     * @param array $filters associative array [ column_name => value ]
      *      e.g.
      *          'foo' => 123        means foo = 123
      *          'foo[>=]' => 123    means foo >= 123
      * @param array $orders mixed array [ column_name1, column_name2 => direction ] e.g. [ 'foo', 'bar' => 'DESC' ] note: foo is ASC (default)
      * @return array|false: array of objects | false
      */
-    public function distinct( $fields, $filters = [], $orders = [] ) {
-        $what = "DISTINCT " . implode(',', $fields);
+    public function distinct( $columns, $filters = [], $orders = [] ) {
+        $columns = array_map( fn($col) => "`" . trim($col, '`') . "`", $columns );
+        $what = "DISTINCT " . implode(',', $columns);
+        return $this->querySelect( $what, $filters, $orders );
+    }
+
+    /**
+     * @param array $columns array [ column_name_1, column_name_2, ... ]
+     * @param array $filters associative array [ column_name => value ]
+     *      e.g.
+     *          'foo' => 123        means foo = 123
+     *          'foo[>=]' => 123    means foo >= 123
+     * @param array $orders mixed array [ column_name1, column_name2 => direction ] e.g. [ 'foo', 'bar' => 'DESC' ] note: foo is ASC (default)
+     * @return array|false: array of objects | false
+     */
+    public function selectColumns( $columns, $filters = [], $orders = [] ) {
+        $columns = array_map( fn($col) => "`" . trim($col, '`') . "`", $columns );
+        $what = implode(',', $columns);
         return $this->querySelect( $what, $filters, $orders );
     }
 

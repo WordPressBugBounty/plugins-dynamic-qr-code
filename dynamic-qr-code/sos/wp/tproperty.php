@@ -1,81 +1,51 @@
 <?php
 namespace SOSIDEE_DYNAMIC_QRCODE\SOS\WP;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
+
 /**
- * USAGE *
- * 
- * class MyPluginClass
- * {
- *      use \SOSIDEE_DYNAMIC_QRCODE\SOS\WP\Property {
- *          __get as __getProp;
- *          __set as __setProp;
+ * HOW TO: override specified properties
+ *      use \NAMESPACE_ROOT\SOS\WP\TProperty {
+ *          __get as _getProp;
+ *          __set as _setProp;
  *      }
- *   
- *      public function __construct() {
- *          //initialize properties
- *          $this->_addProperty('key_1', 'value_1');
- *          $this->_addProperty('key_2', 'value_2');
- *      }
- * 
- *      //override specific properties
- *      public function __get($name) {
- *          switch($name) {
+ *      public function __get( $name ) {
+ *          switch( $name ) {
  *              case 'key_1': //specific case
- *                  $ret = $this->__getProp($name);
- *                  $ret = "do something here (while getting $ret)";
- *                  break;
+ *                  $ret = $this->_getProp( $name );
+ *                  return "do something here with $ret";
  *              default:
- *                  $ret = $this->__getProp($name);
+ *                  return $this->_getProp( $name );
  *          }
- *          return $ret;
  *      }
- *      public function __set($name, $value) {
- *          switch($name) {
- *              case 'key_1': //specific case
- *                  $value = "do something here (while setting $value)" ;
- *                  $ret = $this->__setProp($name, $value);
- *                  break;
+ *      public function __set( $name, $value ) {
+ *          switch( $name ) {
+ *              case 'key_2': //specific case
+ *                  $value = "do something else with $value";
+ *                  return $this->_setProp( $name, $value );
  *              default:
- *                  $ret = $this->__getProp($name);
+ *                  return $this->_setProp( $name, $value );
  *          }
- *          return $ret;
  *      }
- * }
 **/
+
 trait TProperty
 {
-    protected $_properties = array();
-    
-    public function __get($name) {
-        $ret = null;
-        switch($name) {
-            case '???': //caso particolare
-                $ret = '???';
-                break;
-            default:
-	            $ret = $this->_properties[$name];
-        }
-        return $ret;
+    private $_dynamic_properties = [];
+
+    public function __set( $name, $value ) {
+        $this->_dynamic_properties[$name] = $value;
     }
 
-    public function __set($name, $value) {
-        switch($name) {
-            case '???': //caso particolare
-                $this->_properties[$name] = $value;
-                break;
-            default:
-                $this->_properties[$name] = $value;
-        }
-        return $this;
+    public function __get( $name ) {
+        return $this->_dynamic_properties[$name] ?? null;
     }
-    
-    protected function _addProperty($name, $value = null) {
-        $this->_properties[$name] = $value;
-        return $this;
+
+    public function __isset( $name ) {
+        return isset( $this->_dynamic_properties[$name] );
     }
-    
-    public static function checkId($value) {
-        return \str_replace(' ', '-', strtolower(trim($value)));
+
+    public function __unset( $name ) {
+        unset( $this->_dynamic_properties[$name] );
     }
     
 }

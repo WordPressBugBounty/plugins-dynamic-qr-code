@@ -5,8 +5,12 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
 use SOSIDEE_DYNAMIC_QRCODE\SRC as SRC;
 use SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP;
 
-class Base extends \SOSIDEE_DYNAMIC_QRCODE\SOS\WP\DATA\Form
+class Base extends SOS_WP\DATA\Form
 {
+    use SOS_WP\TProperty;
+
+    protected $addon;
+
     public static $FLD_HID;
 
     private static $root = null;
@@ -14,8 +18,11 @@ class Base extends \SOSIDEE_DYNAMIC_QRCODE\SOS\WP\DATA\Form
 
     //protected $_database;
 
-    public function __construct($name, $callback = null) {
+    public function __construct( $name = '', $callback = null ) {
         parent::__construct( $name, $callback );
+
+        $this->addon = null;
+        //$this->addon = self::plugin()->getAddon();
     }
 
     private static function getRoot() {
@@ -58,25 +65,16 @@ class Base extends \SOSIDEE_DYNAMIC_QRCODE\SOS\WP\DATA\Form
     }
 
     public static function getUrlList() {
+
         if ( is_null(self::$options) ) {
-            self::$options = [ '' => 'custom URL' ];
-            if ( self::plugin()->hasFacebook() ) {
-                self::$options['Facebook&nbsp;'] = self::plugin()->addon->facebook::getOptions();
-            }
-            if ( self::plugin()->hasInstagram() ) {
-                self::$options['Instagram&nbsp;'] = self::plugin()->addon->instagram::getOptions();
-            }
-            if ( self::plugin()->hasLinkedIn() ) {
-                self::$options['LinkedIn&nbsp;'] = self::plugin()->addon->linkedin::getOptions();
-            }
-            if ( self::plugin()->hasWhatsApp() ) {
-                self::$options['WhatsApp&nbsp;'] = self::plugin()->addon->whatsapp::getOptions();
-            }
-            if ( self::plugin()->hasYouTube() ) {
-                self::$options['YouTube&nbsp;'] = self::plugin()->addon->youtube::getOptions();
-            }
-            self::$options['Pages&nbsp;'] = self::getPageList();
-            self::$options['Posts&nbsp;'] = self::getPostList();
+            $options = [ '' => 'custom URL' ];
+
+            $options = self::plugin()->applyFilter('_form_base_get_url', $options);
+
+            $options['Pages&nbsp;'] = self::getPageList();
+            $options['Posts&nbsp;'] = self::getPostList();
+
+            self::$options = $options;
         }
         return self::$options;
     }
@@ -89,13 +87,13 @@ class Base extends \SOSIDEE_DYNAMIC_QRCODE\SOS\WP\DATA\Form
         return $ret;
     }
 
-    private static function isPosted() {
-        return isset($_SERVER['REQUEST_METHOD']) && strtoupper($_SERVER['REQUEST_METHOD']) == 'POST';
+    private static function isPostedStatic() {
+        return isset($_SERVER['REQUEST_METHOD']) && strtoupper( sanitize_text_field( wp_unslash($_SERVER['REQUEST_METHOD']) ) ) == 'POST';
     }
 
     public static function checkPosted( $value ) {
         $ret = false;
-        if ( self::isPosted() ) {
+        if ( self::isPostedStatic() ) {
             $config = self::plugin()->config;
             //$config->formCheckMode->load();
             switch ( $config->formCheckMode->getValue() ) {
@@ -113,7 +111,7 @@ class Base extends \SOSIDEE_DYNAMIC_QRCODE\SOS\WP\DATA\Form
                     break;
                 case CheckMode::FIELD:
                     if ( isset($_POST[self::$FLD_HID]) ) {
-                        $hid = trim( $_POST[self::$FLD_HID] );
+                        $hid = trim( sanitize_text_field( wp_unslash($_POST[self::$FLD_HID]) ) );
                         if ( strcasecmp( $hid, $value ) == 0 ) {
                             $ret = true;
                         } else {
@@ -141,6 +139,5 @@ class Base extends \SOSIDEE_DYNAMIC_QRCODE\SOS\WP\DATA\Form
             ,'value' => $id
         ]);
     }
-
 
 }

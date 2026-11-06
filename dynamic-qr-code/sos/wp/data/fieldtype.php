@@ -9,7 +9,7 @@ class FieldType
     const TEXTAREA = 2;
     const CHECK = 3;
     const SELECT = 4;
-    const OPTION = 5; //radio button
+    const OPTIONLIST = 5; //radio button
     const NUMBER = 6;
     const CHECKLIST = 7;
     const COMBOBOX = 8;

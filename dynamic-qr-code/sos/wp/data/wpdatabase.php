@@ -6,29 +6,23 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
 
 class WpDatabase
 {
-    use SOS_WP_ROOT\TProperty;
     use SOS_WP_ROOT\TBase;
 
-    protected $prefix; //tables prefix
+    protected $prefix; // plugin's tables prefix
+    protected $charset;
 
     protected $tables;
     public $lastErrors;
 
     public function __construct( $prefix ) {
         global $wpdb;
-        if ( !sosidee_str_starts_with($prefix, 'sos') && !sosidee_str_starts_with($prefix, '_sos') ) {
-            if ( !sosidee_str_starts_with($prefix, '_') ) {
-                $prefix = '_' . $prefix;
-            }
-            $prefix = 'sos' . $prefix;
-        }
-        if ( !sosidee_str_ends_with($wpdb->prefix, '_') && !sosidee_str_starts_with($prefix, '_') ) {
-            $prefix = '_' . $prefix;
-        }
-        if ( !sosidee_str_ends_with($prefix, '_') ) {
-            $prefix .= '_';
-        }
-        $this->prefix = $wpdb->prefix . $prefix;
+        $prefix = trim($prefix, '_');
+        $prefix = preg_replace('/^(_?sos_?)/i', '', $prefix);
+        $prefix = ltrim($prefix, '_');
+        $prefix_wp = rtrim($wpdb->prefix, '_');
+        $this->prefix = "{$prefix_wp}_sos_{$prefix}_";
+
+        $this->charset = $wpdb->get_charset_collate();
 
         $this->tables = array();
         $this->lastErrors = array();
@@ -36,44 +30,75 @@ class WpDatabase
 
     public function addTable($name) {
         $ret = new WpTable($this->prefix . $name);
+        $ret->charset = $this->charset;
         $this->tables[] = $ret;
-        $this->_addProperty($name, $ret);
         return $ret;
     }
 
     protected function createTables() {
-        global $wpdb;
         $ret = false;
         $this->lastErrors = array();
+        $updated = false;
+        $hashes = [];
+        $key = $this->plugin()->key . '_db-tables';
         $count = count($this->tables);
         if ( $count > 0 ) {
-            require_once( ABSPATH . str_replace('/', DIRECTORY_SEPARATOR, 'wp-admin/includes/upgrade.php') );
+            if ( ! function_exists('dbDelta') ) {
+                require_once( sosidee_check_path_separator( ABSPATH . 'wp-admin/includes/upgrade.php' ) );
+            }
             if ( function_exists('dbDelta') ) {
+                global $wpdb;
                 $ret = true;
-                $charset = $wpdb->get_charset_collate();
-                for ( $n=0; $n<count($this->tables); $n++ ) {
-                    $sql = $this->tables[$n]->getCommandSql() . " {$charset};";
-                    \dbDelta( $sql );
-                    $err = $wpdb->last_error;
-                    if ( !empty($err) ) {
-                        $ret = false;
-                        sosidee_log("WpDatabase.createTables() :: function dbDelta($sql) generated this error: $err");
-                        $this->lastErrors[] = $err;
+                $saved_hashes = get_option($key, [] );
+                for ( $n=0; $n<$count; $n++ ) {
+                    $updateTable = false;
+                    $table = $this->tables[$n];
+                    $current_hash = $table->getSchemaHash();
+                    if ( isset($saved_hashes[$table->name]) ) {
+                        if ( $saved_hashes[$table->name] != $current_hash ) {
+                            $updateTable = true;
+                        }
+                    } else {
+                        $updateTable = true;
                     }
+                    if ( $updateTable ) {
+                        $sql = $table->getCommandSql();
+                        \dbDelta( $sql );
+                        $err = $wpdb->last_error;
+                        if ( empty($err) ) {
+                            $updated = true;
+                            $hashes[$table->name] = $current_hash;
+                        } else {
+                            $ret = false;
+                            sosidee_log("WpDatabase::createTables() - function dbDelta($sql) generated this error: $err");
+                            $this->lastErrors[] = $err;
+                            if( isset($saved_hashes[$table->name]) ) {
+                                $hashes[$table->name] = $saved_hashes[$table->name];
+                            }
+                        }
+                    } else {
+                        $hashes[$table->name] = $current_hash;
+                    }
+
+                }
+                if ( $updated ) {
+                    update_option($key, $hashes );
                 }
             } else {
                 $this->lastErrors[] = 'Unable to load the WP function dbDelta().';
-                sosidee_log("WpDatabase.createTables() was unable to load the WP function dbDelta()");
+                sosidee_log("WpDatabase::createTables() was unable to load the WP function dbDelta()");
             }
+        } else {
+            sosidee_log("WpDatabase::createTables() no custom table has been defined.");
         }
         return $ret;
     }
 
     public function getTable( $name ) {
-        $ret = false;
-        for ($n=0; $n<count($this->tables); $n++) {
-            if ( $this->tables[$n]->name == $this->prefix . $name ) {
-                $ret = $this->tables[$n];
+        $ret = null;
+        foreach ( $this->tables as $table ) {
+            if ( $table->name == $this->prefix . $name ) {
+                $ret = $table;
                 break;
             }
         }
@@ -88,13 +113,17 @@ class WpDatabase
                 if ( is_admin() ) {
                     $this->plugin()::msgErr($msg, true);
                 }
-                sosidee_log("WpDatabase.create(): " . $msg);
+                sosidee_log("WpDatabase::create() - " . $msg);
+                return;
             }
             $key = $this->plugin()->key . '_db-version';
             $installed = get_option($key, '0' );
-            if ( version_compare($installed, $current) < 0 ) {
+            $new_version = version_compare($installed, $current) < 0;
+            if ( $new_version || sosidee_is_dev() ) {
                 if ( $this->createTables() ) {
-                    update_option($key, $current );
+                    if ( $new_version ) {
+                        update_option($key, $current );
+                    }
                     $this->plugin()->onDatabaseUpdate($installed, $current);
                 } else {
                     if ( is_admin() ) {
@@ -116,13 +145,14 @@ class WpDatabase
      */
     public function select( $formatted_sql, ...$values ) {
         global $wpdb;
+        // if the first argument is an array, unpack it
         if ( count( $values ) == 1 && is_array( $values[0] ) ) {
             $values = $values[0];
         }
         if ( count($values) > 0) {
-            $query = $wpdb->prepare($formatted_sql, $values);
+            $query = $wpdb->prepare($formatted_sql, ...$values);
         } else {
-            $query = $formatted_sql;
+            $query = $wpdb->prepare($formatted_sql);
         }
         $ret = $wpdb->get_results($query); // ARRAY_A | ARRAY_N | OBJECT (default) | OBJECT_K
         if ( is_null($ret) ) {
@@ -135,7 +165,7 @@ class WpDatabase
     /**
      * @param \string $formatted_sql sql query with formats (%d, %s, %f)
      * @param \array $values values associated with the formats --> look out: order is important!
-     * @return \wpdb object|false
+     * @return bool|int|\mysqli_result|null
      *
      * Example: obj->query( "INSERT INTO <table> (foo, bar, baz) VALUES (%s, %d, %f)", 'pippo', 123, 1.23 );
      */
@@ -145,7 +175,7 @@ class WpDatabase
             $values = $values[0];
         }
         if ( count($values) > 0) {
-            $sql = $wpdb->prepare($formatted_sql, $values);
+            $sql = $wpdb->prepare($formatted_sql, ...$values);
         } else {
             $sql = $formatted_sql;
         }
@@ -155,6 +185,19 @@ class WpDatabase
             sosidee_log("WpDatabase.query() :: wpdb.query($sql) returned null.");
         }
         return $ret;
+    }
+
+    public function tableExists( $name, $without_sos_prefix = false ) {
+        global $wpdb;
+        if ( ! $without_sos_prefix ) {
+            $name = $this->prefix . $name;
+        } else {
+            $name = $wpdb->prefix . $name;
+        }
+        $name = $wpdb->esc_like($name);
+        $query = $wpdb->prepare( 'SHOW TABLES LIKE %s', $name );
+        $result = $wpdb->get_var( $query );
+        return ! is_null( $result );
     }
 
     public function transaction() {
@@ -169,8 +212,5 @@ class WpDatabase
         global $wpdb;
         $wpdb->query('ROLLBACK');
     }
-
-
-
 
 }

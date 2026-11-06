@@ -19,21 +19,22 @@ class NavTab
     }
     
     public function html() {
-        if (count($this->pages) > 0) {
-            if (count($this->pages) > 1) {
+        if ( count($this->pages) > 0 ) {
+            if ( count($this->pages) > 1 ) {
                 echo '<h2 class="nav-tab-wrapper current">';
                 $current = '';
-                for ($n=0; $n<count($this->pages); $n++) {
+                for ( $n=0; $n<count($this->pages); $n++ ) {
                     $page = $this->pages[$n];
-                    echo '<a href="' . esc_url( menu_page_url($page->key, false) ) . '" class="nav-tab';
+                    $url = menu_page_url($page->key, false);
+                    echo '<a href="' . esc_url( $url ) . '" class="nav-tab';
                     if ( $page->isCurrent() ) {
                         echo ' nav-tab-active';
                     }
-                    echo '">' . sosidee_kses( $page->name ) . '</a>';
+                    echo '">' . esc_html( $page->name ) . '</a>';
                 }
                 echo '</h2>';
             } else {
-                echo '<h1>' . sosidee_kses( $this->pages[0]->name ) . '</h1>';
+                echo '<h1>' . esc_html( $this->pages[0]->name ) . '</h1>';
             }
         }
     }

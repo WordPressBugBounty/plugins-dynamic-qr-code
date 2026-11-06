@@ -18,7 +18,7 @@ if ( $code_shared ) {
     $sw_desc = '50%';
 }
 
-echo $plugin->help('qr-codes-list');
+echo wp_kses( $plugin->help('qr-codes-list'), sosidee_allowed_html() );
 
 $plugin->htmlAdminPageTitle('QR-Code List');
 ?>
@@ -32,12 +32,12 @@ $plugin->htmlAdminPageTitle('QR-Code List');
     <table class="form-table sqc" style="width: inherit;" role="presentation">
         <tbody>
         <tr>
-            <td class="centered middled" style="font-weight: bold;">Enablement</td>
+            <td class="centered middled" style="font-weight: bold;">Status</td>
             <td class="centered middled">
                 <?php $form->htmlStatus(); ?>
             </td>
             <td class="centered middled">
-                <?php $form->htmlButton( '', 'search' ); ?>
+                <?php $form->htmlButton( 'search', 'search' ); ?>
             </td>
         </tr>
         </tbody>
@@ -52,7 +52,7 @@ $plugin->htmlAdminPageTitle('QR-Code List');
             <?php if ( $code_shared ) { ?>
                 <th scope="col" class="bordered middled centered" style="width: 5%">Q-ID</th>
             <?php } ?>
-            <th scope="col" class="bordered middled centered" style="width: 5%;">State</th>
+            <th scope="col" class="bordered middled centered" style="width: 5%;">Status</th>
             <th scope="col" class="bordered middled centered" style="width: 15%;">Creation</th>
             <th scope="col" class="bordered middled centered" style="width: 10%;">
                 <?php $form->htmlButtonLink(); ?>
@@ -71,17 +71,16 @@ if ( is_array($qrcodes) && count($qrcodes) > 0 ) {
         $id = $item->qrcode_id;
         $url = $item->url_api;
         $quid = QrCode::getQID( $item->qrcode_id );
-        //$copy = $plugin->getCopyApiUrl2CBIcon( $id, $code );
         $copy = Copy2CB::getApiUrlIcon( $id, $code );
     ?>
             <tr>
-                <td class="bordered middled centered"><?php echo sosidee_kses( $copy ); ?></td>
+                <td class="bordered middled centered"><?php echo wp_kses( $copy, sosidee_allowed_html() ); ?></td>
                 <td class="bordered middled centered"><?php echo esc_html( $description ); ?></td>
                 <td class="bordered middled centered"><?php echo esc_html( $code ); ?></td>
                 <?php if ( $code_shared ) { ?>
                     <td class="bordered middled centered"><?php echo esc_html( $quid ); ?></td>
                 <?php } ?>
-                <td class="bordered middled centered"><?php echo sosidee_kses( $status_icon ); ?></td>
+                <td class="bordered middled centered"><?php echo wp_kses( $status_icon, sosidee_allowed_html() ); ?></td>
                 <td class="bordered middled centered"><?php echo esc_html( $creation ); ?></td>
                 <td class="bordered middled centered"><?php $form->htmlButtonLink( $id ); ?></td>
             </tr>
@@ -91,8 +90,6 @@ if ( is_array($qrcodes) && count($qrcodes) > 0 ) {
         </tbody>
     </table>
 
-<?php $form->htmlClose(); ?>
-
     <p style="font-style:italic;">
         <?php
         if ( is_array($qrcodes) && count($qrcodes) > 0 ) {
@@ -101,10 +98,14 @@ if ( is_array($qrcodes) && count($qrcodes) > 0 ) {
             foreach ( $states as $key => $value ) {
                 echo ' &nbsp; ';
                 $icon = QrCodeSearchStatus::getStatusIcon( $key );
-                echo sosidee_kses( $icon . ' ' . $value );
+                echo wp_kses( $icon . ' ' . $value, sosidee_allowed_html() );
             }
         }
         ?>
     </p>
+
+    <?php $form->htmlExImport(); ?>
+
+    <?php $form->htmlClose(); ?>
 
 </div>

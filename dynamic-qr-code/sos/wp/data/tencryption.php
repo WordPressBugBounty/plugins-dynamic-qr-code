@@ -6,7 +6,7 @@ trait TEncryption
 {
 
     public function encrypt( $value ) {
-        if ( trim($value) == '' ) {
+        if ( empty($value) || trim($value) == '' ) {
             return '';
         }
 
@@ -23,7 +23,7 @@ trait TEncryption
     }
 
     public function decrypt( $enc_value ) {
-        if ( trim($enc_value) == '' ) {
+        if ( empty($enc_value) || trim($enc_value) == '' ) {
             return '';
         }
 

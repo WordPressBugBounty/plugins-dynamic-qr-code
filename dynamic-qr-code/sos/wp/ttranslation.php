@@ -49,7 +49,7 @@ trait TTranslation
     }
     
     public static function te($key, $args = null) {
-        echo sosidee_kses( self::t_($key, $args) );
+        echo wp_kses( self::t_($key, $args), sosidee_allowed_html() );
     }
 
     /**
@@ -66,9 +66,11 @@ trait TTranslation
                 self::$internationalized = true;
             }
 
+            /*
             add_action( 'plugins_loaded', function() use ($text_domain, $folder) {
                 load_plugin_textdomain( $text_domain, false, basename( $folder ) . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR );
             });
+            */
         } else {
             trigger_error('The method SOS\WP\Translation::internationalize() is supposed to be called only by a SOS\WP\Plugin object.', E_USER_WARNING);
         }

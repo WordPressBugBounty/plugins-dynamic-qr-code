@@ -7,10 +7,13 @@ class LogStatus
     const NONE = QrCodeStatus::NONE;
     const ACTIVE = QrCodeStatus::ACTIVE;
     const INACTIVE = QrCodeStatus::INACTIVE;
-    const DISABLED = QrCodeStatus::DISABLED;
+    const EXCLUDED = QrCodeStatus::EXCLUDED;
     const FINISHED = QrCodeStatus::FINISHED;
     const EXPIRED = QrCodeStatus::EXPIRED;
+    const DISABLED = QrCodeStatus::DISABLED;
     const ERROR = QrCodeStatus::ERROR;
+
+    const QUERY_NAME = 'status';
 
     public static function getList($caption = false) {
         $ret = array();
@@ -22,6 +25,7 @@ class LogStatus
         $ret[self::INACTIVE] = self::getDescription(self::INACTIVE);
         $ret[self::EXPIRED] = self::getDescription(self::EXPIRED);
         $ret[self::FINISHED] = self::getDescription(self::FINISHED);
+        $ret[self::EXCLUDED] = self::getDescription(self::EXCLUDED);
         $ret[self::DISABLED] = self::getDescription(self::DISABLED);
         $ret[self::ERROR] = self::getDescription(self::ERROR);
 
@@ -43,6 +47,9 @@ class LogStatus
                 break;
             case self::EXPIRED:
                 $ret = 'expired';
+                break;
+            case self::EXCLUDED:
+                $ret = 'excluded';
                 break;
             case self::FINISHED:
                 $ret = 'finished';
@@ -71,6 +78,9 @@ class LogStatus
                 break;
             case self::EXPIRED:
                 $ret = self::getIcon('hourglass_bottom', 'orange', self::getDescription($value));
+                break;
+            case self::EXCLUDED:
+                $ret = self::getIcon('cancel', 'darkred', self::getDescription($value));
                 break;
             case self::ERROR:
                 $ret = self::getIcon('error', 'red', self::getDescription($value));

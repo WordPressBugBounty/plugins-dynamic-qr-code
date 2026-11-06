@@ -1,7 +1,8 @@
 <?php
 namespace SOSIDEE_DYNAMIC_QRCODE\SOS\WP\BE;
-use SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
+
+use SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP;
 
 /**
  * Class for the admin console pages
@@ -16,15 +17,15 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
  */
 class Page
 {
-    use SOS_WP\TProperty {
-        SOS_WP\TProperty::__set as __setProp;
-    }
     use SOS_WP\TTranslation;
 
     private static $screen = null;
 
+    protected $forms;
+
     public $key;
     public $url;
+    public $path;
     public $name;
     public $role;
     public $title;
@@ -33,9 +34,17 @@ class Page
     public $hook;
     public $menuHidden;
 
-    public function __construct($path, $name) {
-        $this->_addProperty('path', '');
+    public function __construct( $path, $name = '' ) {
+
+        if ( !sosidee_str_ends_with($path, '.php') ) {
+            $path .= '.php';
+        }
         $this->path = $path;
+
+        if ( $name == '' ) {
+            $name = sosidee_str_remove('.php', basename( $path) );
+        }
+        $this->name = $name;
 
         $this->key = '';
         $this->url = '';
@@ -46,32 +55,30 @@ class Page
         $this->menuHidden = false;
         $this->hook = false;
 
-        if ( $name == '' ) {
-            $name = sosidee_str_remove('.php', basename( $path) );
-        }
-        $this->name = $name;
-
+        $this->forms = array();
     }
 
-    public function __set($name, $value) {
-        switch ($name) {
-            case 'path':
-                if ( !sosidee_str_ends_with($value, '.php') ) {
-                    $value .= '.php';
-                }
-                break;
-        }
-        return $this->__setProp($name, $value);
-    }
-    
     public function translate() {
         $this->name = self::t_( $this->name );
         $this->title = self::t_( $this->title );
+    }
+
+    public function init( $title, $role ) {
+        if ( $this->title == '' ) {
+            $this->title = $title;
+        }
+        if ( !is_null($role) ) {
+            $this->role = $role;
+        }
     }
     
     public function isCurrent() {
         if ( is_null(self::$screen) ) {
             self::$screen = get_current_screen();
+        }
+        if ( is_null(self::$screen) ) {
+            sosidee_log("Page::isCurrent() - get_current_screen() returned null.");
+            return false;
         }
         return sosidee_str_ends_with(self::$screen->id, $this->key );
     }
@@ -83,5 +90,41 @@ class Page
     public function getUrl(...$args) {
         return add_query_arg($args, $this->url);
     }
+
+    public function hasForm() {
+        return count($this->forms) > 0;
+    }
+
+    public function addForm() {
+        $forms = func_get_args();
+        if ( func_num_args() == 1 && is_array($forms[0]) ) {
+            $forms = $forms[0];
+        }
+        $keys = array_map(function($form) {
+            return $form->getKey();
+        }, $this->forms);
+        foreach ( $forms as $form ) {
+            if ( !in_array($form->getKey(), $keys) ) {
+                $this->forms[] = $form;
+            }
+        }
+        return $this;
+    }
+
+    public function getFormByName( $name ) {
+        foreach ( $this->forms as $form ) {
+            if ( $form->getName() == $name ) {
+                return $form;
+            }
+        }
+        return null;
+    }
+
+    public function handleFormLoad() {
+        foreach ( $this->forms as $form ) {
+            $form->handleLoad();
+        }
+    }
+
 
 }

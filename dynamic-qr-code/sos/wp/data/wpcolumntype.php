@@ -5,21 +5,21 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
 
 class WpColumnType
 {
-    const BOOLEAN = 'bit';
+    const BOOLEAN = 'BOOLEAN';
 
-    const INTEGER = 'int';
-    const TINY_INTEGER = 'tinyint';
-    const SMALL_INTEGER = 'smallint';
+    const INTEGER = 'INT';
+    const TINY_INTEGER = 'TINYINT';
+    const SMALL_INTEGER = 'SMALLINT';
 
-    const FLOAT = 'float';
-    const DOUBLE = 'double';
-    const DECIMAL = 'decimal';
-    const CURRENCY = 'decimal';
+    const FLOAT = 'FLOAT';
+    const DOUBLE = 'DOUBLE';
+    const DECIMAL = 'DECIMAL';
+    const CURRENCY = 'DECIMAL';
 
-    const DATETIME = 'datetime';
-    const TIMESTAMP = 'timestamp';
-    const TIME = 'time';
+    const DATETIME = 'DATETIME';
+    const TIMESTAMP = 'TIMESTAMP';
+    const TIME = 'TIME';
 
-    const VARCHAR = 'varchar';
-    const TEXT = 'text';
+    const VARCHAR = 'VARCHAR';
+    const TEXT = 'TEXT';
 }

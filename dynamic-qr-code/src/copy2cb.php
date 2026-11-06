@@ -7,11 +7,11 @@ class Copy2CB
     use \SOSIDEE_DYNAMIC_QRCODE\SOS\WP\TBase;
 
     public static function getIcon( $text, $title ) {
-        return '<a href="javascript:void(0);" onclick="jsSosCopy2Clipboard(\'' . esc_js($text) . '\')" title="' . esc_attr($title) . '" style="width: inherit;"><i class="material-icons" style="vertical-align: bottom; max-width: 1em; font-size: inherit; line-height: inherit;">content_copy</i></a>';
+        return '<a href="#" onclick="jsSosCopy2Clipboard(\'' . esc_js($text) . '\'); return false;" title="' . esc_attr($title) . '" style="width: inherit;"><i class="material-icons" style="vertical-align: bottom; max-width: 1em; font-size: inherit; line-height: inherit;">content_copy</i></a>';
     }
 
     public static function getAlert( $text, $title ) {
-        return '<a href="javascript:void(0);" onclick="alert(\'' . esc_js($text) . '\')" title="' . esc_attr($title) . '" style="width: inherit;"><i class="material-icons" style="vertical-align: bottom; max-width: 1em; font-size: inherit; line-height: inherit;">content_copy</i></a>';
+        return '<a href="#" onclick="alert(\'' . esc_js($text) . '\')" title="' . esc_attr($title) . '" style="width: inherit;"><i class="material-icons" style="vertical-align: bottom; max-width: 1em; font-size: inherit; line-height: inherit;">content_copy</i></a>';
     }
 
     public static function getApiRootIcon() {

@@ -1,5 +1,7 @@
 <?php
 namespace SOSIDEE_DYNAMIC_QRCODE\SOS\WP\DATA;
+use SOSIDEE_DYNAMIC_QRCODE\SOS\WP\FileSystem;
+
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 /**
  *
@@ -38,39 +40,60 @@ class FormFile
     public $temp;
     public $ext;
     public $error;
+    public $message;
 
     public function __construct( $data ) {
-        $this->name = $data['name']; //The original file name (WITH EXTENSION) on the client machine
-        $this->type = $data['type']; //The mime type of the file, if the browser provided this information
-        $this->size = $data['size']; // The size in bytes
-        $this->temp = $data['tmp_name']; // The temporary file name on the server
-        $this->ext = pathinfo($this->name, PATHINFO_EXTENSION);
-        if ($this->ext != '') {
+        $this->name = $data['name'] ?? ''; // original file name (WITH EXTENSION) on the client machine
+        $this->type = $data['type'] ?? ''; // mime type of the file, if the browser provided this information
+        $this->size = $data['size'] ?? 0; // size in bytes
+        $this->temp = $data['tmp_name'] ?? ''; // temporary file name on the server
+        $this->ext = pathinfo($this->name, PATHINFO_EXTENSION); // file extension
+        if ( $this->ext != '' ) {
             $this->ext = '.' . $this->ext;
         }
-        $this->error = $data['error']; // The error code
+        $this->error = $data['error'] ?? -1; // error code
+        $this->message = self::getMessage($this->error);
     }
 
-    public function moveTo( $path, $filename = '' ) {
+    public function moveTo( $filename = '', $path = '') {
         $ret = false;
         if ( is_uploaded_file($this->temp) ) {
-            if ( !sosidee_str_ends_with($path, DIRECTORY_SEPARATOR) ) {
-                $path .= DIRECTORY_SEPARATOR;
-            }
-            if ( $filename == '' ) {
-                $filename = $this->name;
-            }
-            $target = $path . $filename;
-            if ( move_uploaded_file( $this->temp, $target ) !== false ) {
-                $ret = $target;
+            $filename = sanitize_file_name( empty($filename) ? $this->name : $filename );
+            $file = [
+                'name'     => $filename,
+                'type'     => $this->type,
+                'tmp_name' => $this->temp,
+                'error'    => $this->error,
+                'size'     => $this->size
+            ];
+            $upload_overrides = [ 'test_form' => false ]; // bypassa il test del form HTML
+            $movefile = wp_handle_upload($file, $upload_overrides);
+            if ( $movefile && !isset($movefile['error']) ) {
+                $uploaded_path = $movefile['file']; // percorso del file salvato
+                if ( !empty($path) ) {
+                    if ( !FileSystem::exists($path) && !FileSystem::createFolder($path) ) {
+                        sosidee_log("Could not create folder $path");
+                        return false;
+                    }
+                    $destination = sosidee_check_folder_separator($path) . $filename;
+                    if ( FileSystem::move( $uploaded_path, $destination ) ) {
+                        $ret = $destination;
+                    } else {
+                        sosidee_log("Could not move file from $uploaded_path to $destination");
+                    }
+                } else {
+                    $ret = $uploaded_path;
+                }
             } else {
-                sosidee_log("move_uploaded_file() failed to move file {$this->temp} to {$path}{$filename}");
+                sosidee_log("wp_handle_upload() failed: " . (isset($movefile['error']) ? esc_html($movefile['error']) : 'Unknown error'));
             }
+        } else {
+            sosidee_log("is_uploaded_file() check failed for temp file: " . esc_html($this->temp));
         }
         return $ret;
     }
 
-    public static function getErrorDescription( $index ) {
+    public static function getMessage( $index ) {
         $ret = 'Unknown.';
         switch ($index) {
             case UPLOAD_ERR_OK:
@@ -99,6 +122,10 @@ class FormFile
                 break;
         }
         return $ret;
+    }
+
+    public function getContent() {
+        return FileSystem::read($this->temp);
     }
 
 

@@ -1,25 +1,26 @@
 <?php
 namespace SOSIDEE_DYNAMIC_QRCODE\SOS\WP\DATA;
-use SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
+
+use SOSIDEE_DYNAMIC_QRCODE\SOS\WP as SOS_WP;
 
 /**
  * @property $key
  * @property $options associative array [value => text] for select tag (if 'text' is an associative array, then 'value' becomes an option group)
  */
+#[\AllowDynamicProperties]
 class Field
 {
-    use SOS_WP\TProperty
-    {
-        SOS_WP\TProperty::__get as __getProp;
-        SOS_WP\TProperty::__set as __setProp;
-    }
     use SOS_WP\TTranslation;
     use TEncryption;
+
+    private $writableValue;
+    private $defaultValue;
 
     public $loaded;
     public $encrypted;
 
+    public $key;
     public $name;
     public $value;
     public $type;
@@ -38,18 +39,18 @@ class Field
     public $class;
     public $style;
 
-    public $javascript;
-
     public $handled; //to avoid the double call that happens when the record does not exist and must be inserted
 
+    public $pro;
+
     public function __construct( $key, $title, $value, $type ) {
-        $this->_addProperty('key', '');
 
         $this->parent = null;
         
-        $this->key = $key;
+        $this->key = sosidee_check_id($key);
         $this->name = $key;
         $this->value = $value;
+        $this->defaultValue = $value;
         $this->type = $type;
 
         $this->title = $title;
@@ -67,53 +68,40 @@ class Field
         $this->validate = null;
 
         $this->handled = false;
+        $this->writableValue = null;
+
         $this->encrypted = false;
 
-        $this->javascript = null;
-
         $this->loaded = false;
+
+        $this->pro = false;
+
+        if ( $this->type === FieldType::LABEL ) {
+            $this->loaded = true;
+            $this->handled = true;
+        }
     }
 
-    public function __set( $name, $value ) {
-        switch ($name) {
-            case 'key':
-                $value = self::checkId( $value );
-                break;
-        }
-        return $this->__setProp( $name, $value );
-    }
-    
     public static function create( $parent, $key, $title, $value, $type ) {
         $ret = new self( $key, $title, $value, $type );
         $ret->parent = $parent;
         return $ret;
     }
 
-    private static function getText( $key, $text ) {
+    private static function getText( $key, $text, $class = 'regular-text' ) {
         return FormTag::get( 'input', [
              'type' => 'text'
             ,'id' => $key
             ,'name' => $key
             ,'value' => $text
-            ,'class' => 'regular-text'
+            ,'class' => $class
         ]);
     }
 
-    private static function getCheck( $key, $checked, $value = '1', $onclick = null ) {
-        return FormTag::get( 'input', [
-                 'type' => 'checkbox'
-                ,'id' => $key
-                ,'name' => $key
-                ,'value' => $value
-                ,'checked' => $checked
-                ,'onclick' => $onclick
-            ]
-        );
-    }
+    private static function getSelect( $key, $current, $options, $style = null, $onchange = null, $without_name = false ) {
 
-    private static function getSelect( $key, $current, $options, $style = null, $onchange = null ) {
         $html = '';
-        foreach ($options as $value => $text) {
+        foreach ( $options as $value => $text ) {
             if ( !is_array($text) ) {
                 $html .= FormTag::get('option', [
                      'value' => $value
@@ -122,7 +110,7 @@ class Field
                 ]);
             } else {
                 $group = '';
-                foreach ($text as $grp_value => $grp_text) {
+                foreach ( $text as $grp_value => $grp_text ) {
                     $group .= FormTag::get('option', [
                          'value' => $grp_value
                         ,'selected' => strcasecmp($current, $grp_value) == 0
@@ -136,13 +124,17 @@ class Field
             }
         }
 
-        return FormTag::get( 'select', [
+        $attributes = [
              'id' => $key
             ,'name' => $key
             ,'html' => $html
             ,'style' => $style
             ,'onchange' => $onchange
-        ]);
+        ];
+        if ( $without_name === true ) {
+            unset( $attributes['name'] );
+        }
+        return FormTag::get( 'select', $attributes );
     }
 
     public function getTagKey() {
@@ -158,49 +150,54 @@ class Field
     public function html() {
         $tag_key = $this->getTagKey();
 
-        $current = $this->value;
+        $current = $this->getValue();
         $html = '';
 
         if ( $this->type == FieldType::CHECK ) {
 
-            $checked = strcasecmp($current, '1') == 0;
-            $html_tag = self::getCheck($tag_key, $checked);
-
-            if ( $this->label != '' ) {
-                $html_tag = FormTag::get( 'label', [
-                     'for' => $tag_key
-                    ,'html' => $html_tag . $this->label
-                ]);
-            }
-            $html .= $html_tag;
-
-        } else if ( $this->type == FieldType::SELECT ) {
-
-            $html .= self::getSelect($tag_key, $current, $this->options);
-
-        } else if ( $this->type == FieldType::OPTION ) {
-
-            $html_tag = '';
-            foreach ($this->options as $value => $text) {
-                if ( $html_tag != '' ) {
-                    $html_tag .= '<br>';
-                }
-                $html_opt = FormTag::get( 'input', [
-                     'type' => 'radio'
+            $tag = FormTag::get( 'input', [
+                     'type' => 'checkbox'
+                    ,'id' => $tag_key
                     ,'name' => $tag_key
-                    ,'value' => $value
-                    ,'checked' => strcasecmp($current, $value) == 0
-                ]);
-
-                $html_tag .= FormTag::get( 'label', [
-                     'html' => $html_opt
-                    ,'content' => $text
+                    ,'value' => '1'
+                    ,'checked' => strcasecmp( $current, '1' ) == 0
+                ]
+            );
+            if ( !is_null($this->label) && !empty(trim($this->label)) ) {
+                $tag .= FormTag::get( 'label', [
+                     'for' => $tag_key
+                    ,'html' => $this->label
                 ]);
             }
+            $html .= $tag;
 
-            $html .= $html_tag;
+        } elseif ( $this->type == FieldType::SELECT ) {
 
-        } else if ($this->type == FieldType::TEXTAREA ) {
+            $html .= self::getSelect( $tag_key, $current, $this->options );
+
+        } elseif ( $this->type == FieldType::OPTIONLIST ) {
+
+            $html_tags = [];
+            foreach ( $this->options as $value => $text ) {
+                $id = $tag_key . '_' . sosidee_check_id($value);
+                $tag = FormTag::get( 'input', [
+                     'type'     => 'radio'
+                    ,'id'       => $id
+                    ,'name'     => $tag_key
+                    ,'value'    => $value
+                    ,'checked'  => strcasecmp( $current, $value ) == 0
+                ]);
+                if ( !empty(trim($text)) ) {
+                    $tag .= FormTag::get( 'label', [
+                         'for'      => $id
+                        ,'content'  => $text
+                    ]);
+                }
+                $html_tags[] = $tag;
+            }
+            $html .= implode('<br>', $html_tags);
+
+        } elseif ( $this->type == FieldType::TEXTAREA ) {
 
             $html .= FormTag::get( 'textarea', [
                  'id' => $tag_key
@@ -209,7 +206,7 @@ class Field
                 ,'class' => 'large-text'
             ]);
 
-        } else if ( $this->type == FieldType::NUMBER ) {
+        } elseif ( $this->type == FieldType::NUMBER ) {
 
             $html .= FormTag::get( 'input', [
                  'type' => 'number'
@@ -223,7 +220,7 @@ class Field
                 ,'style' => 'text-align:center;'
             ] );
 
-        } else if ( $this->type == FieldType::COLOR ) {
+        } elseif ( $this->type == FieldType::COLOR ) {
 
             $html .= FormTag::get( 'input', [
                  'type' => 'color'
@@ -233,7 +230,7 @@ class Field
                 ,'style' => 'cursor:pointer;'
             ] );
 
-        } else if ( $this->type == FieldType::TEXT ) {
+        } elseif ( $this->type == FieldType::TEXT ) {
 
             $class = $this->class ?? 'regular-text';
             $html .= FormTag::get( 'input', [
@@ -244,85 +241,40 @@ class Field
                 ,'class' => $class
                 ,'style' => $this->style
             ]);
-            //$html .= self::getText($tag_key, $current);
 
-        } else if ( $this->type == FieldType::CHECKLIST ) {
+        } elseif ( $this->type == FieldType::CHECKLIST ) {
 
-            $jsFunc = $this->getJsFuncName($tag_key);
-            $count = 0;
-            $currents = explode(';', $current);
-            $html_tag = '';
-            foreach ($this->options as $value => $text) {
-                $tag_key_chk = $tag_key . $count;
-                if ($html_tag != '') {
-                    $html_tag .= '<br>';
-                }
-
-                $checked = in_array($value, $currents);
-                $html_chk = self::getCheck($tag_key_chk, $checked, $value, "{$jsFunc}(this.value,this.checked);");
-
-                $html_tag .= FormTag::get( 'label', [
-                     'html' => $html_chk
-                    ,'content' => $text
+            $html_tags = [];
+            foreach ($this->options as $_value => $_text) {
+                $id = $tag_key . '-' . sosidee_check_id($_value);
+                $checked = in_array( (string)$_value, $current, true);
+                $tag = FormTag::get('input', [
+                     'type'    => 'checkbox'
+                    ,'id'      => $id
+                    ,'name'    => $tag_key . '[]'
+                    ,'value'   => $_value
+                    ,'checked' => $checked
                 ]);
-                $count++;
+                if ( !empty( trim($_text) ) ) {
+                    $tag .= FormTag::get('label', [
+                         'for'     => $id
+                        ,'content' => $_text
+                    ]);
+                }
+                $html_tags[] = $tag;
             }
+            $html .= implode('<br>', $html_tags);
 
-            $html_tag .= FormTag::get( 'input', [
-                 'type' => 'hidden'
-                ,'id' => $tag_key
-                ,'name' => $tag_key
-                ,'value' => $current
-            ] );
-
-            $html .= $html_tag;
-
-            $js = <<<EOD
-function {$jsFunc}( v, m ) {
-    let field = self.document.getElementById( '$tag_key' );
-    let values = field.value.split( ';' );
-    if ( m && !values.includes(v) ) {
-        values.push(v);
-    } else if ( !m && values.includes(v) ) {
-        values = values.filter( function(e, i, a) { return e != v; }, v );
-    }
-    field.value = values.join( ';' );
-}
-EOD;
-
-            $html .= FormTag::get( 'script', [
-                 'type' => 'application/javascript'
-                ,'content' => $js
-            ]);
-
-        } else if ( $this->type == FieldType::COMBOBOX ) {
-
-            $tag_key_sel = "{$tag_key}_cbo";
-
-            $jsFunc = $this->getJsFuncName($tag_key);
+        } elseif ( $this->type == FieldType::COMBOBOX ) {
 
             $html .= self::getText($tag_key, $current);
 
+            $tag_key_cbo = "{$tag_key}_select";
             $style = 'margin-left: 1em;';
-            $onchange = "{$jsFunc}(this.value);";
-            $html .= self::getSelect($tag_key_sel, $current, $this->options, $style, $onchange);
+            $onchange = "jsSosCombobox(this.value, '{$tag_key}');";
+            $html .= self::getSelect( $tag_key_cbo, $current, $this->options, $style, $onchange, true );
 
-            $js = <<<EOD
-function {$jsFunc}( v ) {
-    let field = self.document.getElementById( '{$tag_key}' );
-    field.value = v;
-    if (v == '') {
-        field.focus();
-    }
-}
-EOD;
-
-            $html .= FormTag::get( 'script', [
-                 'type' => 'application/javascript'
-                ,'content' => $js
-            ]);
-
-        } else if ($this->type == FieldType::HIDDEN ) {
+        } elseif ($this->type == FieldType::HIDDEN ) {
 
             $html .= FormTag::get( 'input', [
                  'id' => $tag_key
@@ -339,7 +291,7 @@ EOD;
             $html .= FormTag::get( 'label', [
                  'id' => $tag_key
                 ,'name' => $tag_key
-                ,'content' => $current
+                ,'html' => $current
             ]);
         }
 
@@ -349,30 +301,55 @@ EOD;
             ]);
         }
 
-        if ( !is_null($this->javascript) ) {
-            $html .= FormTag::get( 'script', [
-                 'type' => 'application/javascript'
-                ,'content' => $this->javascript
-            ]);
-        }
-
-        echo sosidee_kses( $html );
-    }
-
-    private function getJsFuncName($tag_key) {
-        return 'js_' . str_replace( ['-', '[', ']'], ['_'], $tag_key );
+        //echo wp_kses( $html, sosidee_allowed_html() );
+        sosidee_echo_kses( $html );
     }
 
     public function load() {
-        if ( !$this->loaded ) {
-            if ( $this->parent instanceof Section ) {
-                $value = get_option($this->key, $this->value);
-                $this->setValue( $value );
-            } else if ( $this->parent instanceof Group ) {
-                $this->parent->load();
-            }
-            $this->loaded = true;
+        if ( $this->loaded ) {
+            return;
         }
+        if ( $this->parent instanceof Section ) {
+            $sentinel = '___OPTION_NOT_FOUND___' . uniqid();
+            $value = get_option($this->key, $sentinel);
+            if ( $value !== $sentinel ) {
+                $this->setValue( $this->getReadableValue($value) );
+            } else {
+                $this->setValue( $this->defaultValue );
+            }
+        } else if ( $this->parent instanceof Group ) {
+            $this->parent->load();
+        }
+        $this->loaded = true;
+    }
+
+    public function getReadableValue( $value ) {
+        if ( $this->encrypted ) {
+            $value = $this->decrypt($value);
+            if ( $value === false ) {
+                sosidee_log("Data\Field::getReadableValue() - method decrypt() returned false for field.key={$this->key}.");
+                return $this->defaultValue;
+            }
+        }
+        if ( $this->type === FieldType::CHECKLIST ) {
+            $value = @unserialize($value);
+            if ( !is_array($value) ) {
+                $value = array_filter( explode(';', (string)$value) );
+            }
+            if ( !is_array($value) ) {
+                $value = $this->defaultValue;
+            }
+        }
+        return $value;
+    }
+    public function getWritableValue( $value ) {
+        if ( $this->type === FieldType::CHECKLIST ) {
+            $value = serialize($value ?? [] );
+        }
+        if ( $this->encrypted ) {
+            $value = $this->encrypt($value);
+        }
+        return $value;
     }
 
     public function getValue() {
@@ -381,53 +358,36 @@ EOD;
     }
 
     public function setValue( $value ) {
-        if ( !$this->encrypted ) {
-            $this->value = $value;
-        } else {
-            $this->value = $this->decrypt( $value );
-        }
+        $this->value = $value;
     }
     
     /**
      * $input is the field value
      */
-    public function callback( $input ) {
-        $ret = $input;
-        if ( !is_null($this->validate) ) {
-            if ( !$this->handled ) {
-                $this->handled = true;
-                $result = call_user_func( $this->validate, $this->parent->key, array($this->key => $input) );
-                if ( is_array($result) ) {
-                    if ( !empty($result) ) {
-                        $values = array_values($result);
-                        if ( isset($values[0]) ) {
-                            $ret = $values[0];
-                        } else {
-                            $ret = null;
-                        }
-                    } else {
-                        $ret = null;
-                    }
-                } else {
-                    $ret = $result;
-                }
-                if ( $this->encrypted && !is_null($ret) ) {
-                    $ret = $this->encrypt( $ret );
-                }
-            }
+    private function callback( $input ) {
+        if ( $this->handled ) {
+            return $this->writableValue;
         }
-        return $ret;
+        $this->handled = true;
+
+        $validatedValue = $input;
+        if ( is_callable($this->validate) ) {
+            $result = call_user_func($this->validate, $this->parent->key, [$this->key => $input]);
+            $validatedValue = is_array($result) ? ($result[array_key_first($result)] ?? null) : $result;
+        }
+        $this->writableValue = $this->getWritableValue($validatedValue);
+        return $this->writableValue;
     }
     
     public function translate() {
         $this->title = self::t_( $this->title );
         $this->description = self::t_( $this->description );
         $this->label = self::t_( $this->label );
-        foreach ($this->options as $value => $text) {
+        foreach ( $this->options as $value => $text ) {
             if ( !is_array($text) ) {
                 $this->options[$value] = self::t_( $text );
             } else {
-                foreach ($text as $opt_value => $opt_text) {
+                foreach ( $text as $opt_value => $opt_text ) {
                     $this->options[$value][$opt_value] = self::t_( $opt_text );
                 }
                 $value_t = self::t_( $value );
@@ -440,6 +400,7 @@ EOD;
     }
 
     public function initialize() {
+
         add_settings_field(
              $this->key
             ,$this->title
@@ -448,15 +409,20 @@ EOD;
             ,$this->parent->key
         );
     }
+
+    public function sanitize($input) {
+        $input = sosidee_sanitize_recursive($input);
+        return $this->callback($input);
+    }
     
     public function register() {
-
-        $callback = is_null($this->validate) ? null : ["sanitize_callback" => array($this, 'callback')];
-        
+        if ( $this->type === FieldType::LABEL ) {
+            return; // there will be no posted value
+        }
         register_setting(
              $this->parent->key
             ,$this->key
-            ,$callback
+            ,[ 'sanitize_callback' => [$this, 'sanitize'] ]
         );
 
     }

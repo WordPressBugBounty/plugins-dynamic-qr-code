@@ -10,24 +10,22 @@ class Section extends Cluster
 {
     
     public function addField( $key, $title, $value = null, $type = FieldType::TEXT ) {
-        $name = $key;
-        $key = $this->key . '-' . strtolower(trim($key));
-        $ret = parent::addField($key, $title, $value, $type);
-        $ret->name = $name;
+        $namespacedKey = $this->key . '-' . $key;
+        $ret = parent::addField( $namespacedKey, $title, $value, $type );
+        $ret->name = $key;
         return $ret;
     }
     
     public function load() {
-        for ($n=0; $n<count($this->fields); $n++) {
-            $this->fields[$n]->load();
+        foreach ( $this->fields as $field ) {
+            $field->load();
         }
     }
     
     public function register() {
         parent::register();
 
-        for ( $n=0; $n<count($this->fields); $n++ ) {
-            $field = $this->fields[$n];
+        foreach ( $this->fields as $field ) {
             $field->validate = $this->validate;
             $field->register();
         }

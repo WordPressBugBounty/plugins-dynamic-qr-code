@@ -27,18 +27,18 @@ class DashboardWidget
      * $widget = new DashboardWidget('custom_dashboard_widget', 'My dashboard custom widget');
      * $widget->callback = [$this, 'foobar']
      * public function foobar() {
-     *      echo "bla bla...";
+     *      echo "bla bla bla...";
      * }
      */
     public function _html() {
-        if ( !is_null($this->callback) ) {
+        if ( is_callable($this->callback) ) {
             $ret = call_user_func( $this->callback, $this );
             if ( !is_null( $ret ) ) {
-                echo $ret;
+                echo wp_kses( $ret, sosidee_allowed_html() );
             }
         } else {
-            echo '<div>Warning: <em>callback function is not defined.</em></div>';
-            echo '<div style="text-align: right;">Plugin: ' . self::plugin()->name . '</div>';
+            echo '<div>Warning: <em>callback function is not defined/callable.</em></div>';
+            echo '<div style="text-align: right;">Plugin: ' . esc_html(self::plugin()->name) . '</div>';
         }
     }
 

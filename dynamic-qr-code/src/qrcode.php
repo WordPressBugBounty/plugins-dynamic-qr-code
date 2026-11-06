@@ -2,62 +2,100 @@
 namespace SOSIDEE_DYNAMIC_QRCODE\SRC;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
-use SOSIDEE_DYNAMIC_QRCODE\SOS\Http\Request;
+use SOSIDEE_DYNAMIC_QRCODE\SOS\WP\Request;
+use SOSIDEE_DYNAMIC_QRCODE\SOS\WP\TBase;
+use SOSIDEE_DYNAMIC_QRCODE\SOS\WP\TMessage;
+use SOSIDEE_DYNAMIC_QRCODE\SRC\IO as TmpIO;
+
+use SOSIDEE_DYNAMIC_QRCODE\vendor\Endroid\QrCode\Builder\Builder;
+use SOSIDEE_DYNAMIC_QRCODE\vendor\Endroid\QrCode\Encoding\Encoding;
+use SOSIDEE_DYNAMIC_QRCODE\vendor\Endroid\QrCode\ErrorCorrectionLevel; // È un Enum in v5 con PHP 8.1+
+use SOSIDEE_DYNAMIC_QRCODE\vendor\Endroid\QrCode\Color\Color;
+use SOSIDEE_DYNAMIC_QRCODE\vendor\Endroid\QrCode\Writer\PngWriter;
+
+// per label o logo:
+// use SOSIDEE_DYNAMIC_QRCODE\vendor\Endroid\QrCode\Label\LabelAlignment;
+// use SOSIDEE_DYNAMIC_QRCODE\vendor\Endroid\QrCode\Label\Font\OpenSans; // o un altro font
+// use SOSIDEE_DYNAMIC_QRCODE\vendor\Endroid\QrCode\RoundBlockSizeMode;
 
 class QrCode
 {
 
-    use \SOSIDEE_DYNAMIC_QRCODE\SOS\WP\TBase;
-    use \SOSIDEE_DYNAMIC_QRCODE\SOS\WP\TMessage;
+    use TBase;
+    use TMessage;
+
+    const IMAGE_MIN_SIZE = 64;
+    const IMAGE_MAX_SIZE = 2048;
+
+    const IMAGE_DEF_SIZE = 256;
+
+    const IMAGE_MIN_PAD = 0;
+    const IMAGE_MAX_PAD = 32;
 
     const CYPHER_LENGTH = 66;
     const CYPHER_LENGTH_MIN = 16;
-    const IMAGE_PAD_MAX = 32;
 
-    const IMAGE_FOREGROUND = '#000000';
+    public const IMAGE_FOREGROUND = '#000000';
     const IMAGE_BACKGROUND = '#ffffff';
 
     const DATETIME_MODE_FROM = 1;
     const DATETIME_MODE_TO = 2;
 
-    private static function getDateTime($date, $time, $mode) {
-        if ( is_null($date) && is_null($time)) {
+    const REDIRECT_KEY_NAME = 'sos-dqc-key';
+
+    private static function getDateTime( $date, $time, $mode ) {
+        if ( is_null($date) && is_null($time) ) {
             return null;
         } else {
             if ( is_null($date) ) {
                 $date = sosidee_current_datetime();
-            }
-            if ( !is_null($time) ) {
-                $date = $date->setTime( $time->format('G'), intval($time->format('i')), intval($time->format('s')) );
             } else {
-                if ( $mode == self::DATETIME_MODE_FROM ) {
-                    $date = $date->setTime( 0, 0, 0 );
-                } else if ( $mode == self::DATETIME_MODE_TO ) {
-                    $date = $date->setTime( 23, 59, 59 );
+                if ( !$date instanceof \DateTimeInterface ) {
+                    sosidee_log("QrCode::getDateTime() - invalid type for date: " . gettype( $date ) );
+                    return null;
+                }
+                if ( $date instanceof \DateTime ) {
+                    $date = \DateTimeImmutable::createFromMutable($date);
                 }
             }
-            return $date;
+            $ret = null;
+            if ( !is_null($time) ) {
+                if ( !$time instanceof \DateTimeInterface ) {
+                    sosidee_log("QrCode::getDateTime() - invalid type for \$time.");
+                    return null;
+                }
+                $ret = $date->setTime( $time->format('G'), intval($time->format('i')), intval($time->format('s')) );
+            } else {
+                if ( $mode == self::DATETIME_MODE_FROM ) {
+                    $ret = $date->setTime( 0, 0, 0, 0 );
+                } elseif ( $mode == self::DATETIME_MODE_TO ) {
+                    $ret = $date->setTime( 23, 59, 59, 999999 );
+                } else {
+                    sosidee_log("QrCode::getDateTime() - invalid mode ($mode).");
+                }
+            }
+            return $ret;
         }
     }
 
-    public static function getStatus( $item ) {
+    public static function getStatus( $item, $info ) {
         if ( $item->disabled ) {
             return QrCodeStatus::DISABLED;
         }
 
         if ( $item->device_os != OS::UNKNOWN ) {
             if ( !OS::isValid( $item->device_os ) ) {
-                return QrCodeStatus::DISABLED;
+                return QrCodeStatus::EXCLUDED;
             }
         }
 
         if ( !DotW::isValid($item->dotw) ) {
-            return QrCodeStatus::DISABLED;
+            return QrCodeStatus::EXCLUDED;
         }
 
         $datetime_from = self::getDateTime( $item->date_from, $item->time_from, self::DATETIME_MODE_FROM);
         $datetime_to = self::getDateTime( $item->date_to, $item->time_to, self::DATETIME_MODE_TO);
-        if ( !is_null($datetime_from) || !is_null($datetime_to)  ) {
+        if ( !is_null($datetime_from) || !is_null($datetime_to) ) {
             $now = sosidee_current_datetime();
             if ( !is_null($datetime_from) && $datetime_from > $now ) {
                 return QrCodeStatus::INACTIVE;
@@ -67,7 +105,7 @@ class QrCode
         }
 
         if ( $item->device_lang != '' ) {
-            $languages = Request::getLanguages();
+            $languages = Request::getBrowserLanguages();
             if ( is_array($languages) ) {
                 $found = false;
                 foreach ($languages as $lang) {
@@ -77,131 +115,61 @@ class QrCode
                     }
                 }
                 if ( !$found ) {
-                    return QrCodeStatus::DISABLED;
+                    return QrCodeStatus::EXCLUDED;
                 }
             } else {
-                if ( !$item->browser ) {
-                    return QrCodeStatus::DISABLED;
+                if ( $info['preview'] ) {
+                    return QrCodeStatus::EXCLUDED;
                 }
             }
         }
 
         if ( $item->max_scan_tot > 0 ) {
-            self::plugin()->config->sharedCodeEnabled->load();
-            $by_key = self::plugin()->config->sharedCodeEnabled->value;
-            if ( $by_key ) {
-                $current = self::database()->countActiveLogsByCode( $item->code );
+            //self::plugin()->config->sharedCodeEnabled->load();
+            //$by_key = $info['shared'];
+            if ( $info['shared'] ) {
+                $current = self::database()->logs->countByCode( $item->code );
             } else {
-                $current = self::database()->countActiveLogsById( $item->qrcode_id );
+                $current = self::database()->logs->countById( $item->qrcode_id );
             }
             if ( $current !== false ) {
+                $current++; //tengo conto della chiamata in corso
                 if ( $current > $item->max_scan_tot ) {
                     return QrCodeStatus::FINISHED;
                 }
             } else {
-                if ( $by_key ) {
-                    sosidee_log("database.countActiveLogsByCode({$item->code}) returned false.");
+                if ( $info['shared'] ) {
+                    sosidee_log("DB\Log::countByCode({$item->code}) returned false.");
                 } else {
-                    sosidee_log("database.countActiveLogsById({$item->qrcode_id}) returned false.");
+                    sosidee_log("DB\Log::countById({$item->qrcode_id}) returned false.");
                 }
             }
         }
 
         return QrCodeStatus::ACTIVE;
-
-        /*
-        $ret = QrCodeStatus::NONE;
-
-        if ( !$item->disabled ) {
-            if ( OS::isValid( $item->device_os ) ) {
-
-                $datetime_from = self::getDateTime( $item->date_from, $item->time_from );
-                $datetime_to = self::getDateTime( $item->date_to, $item->time_to );
-
-                if ( is_null($datetime_from) && is_null($datetime_to)  ) {
-                    $ret = QrCodeStatus::ACTIVE;
-                } else {
-                    $now = sosidee_server_datetime();
-                    if ( !is_null($datetime_from) && $datetime_from > $now ) {
-                        $ret = QrCodeStatus::INACTIVE;
-                    } else if ( !is_null($datetime_to) && $datetime_to < $now ) {
-                        $ret = QrCodeStatus::EXPIRED;
-                    } else {
-                        $ret = QrCodeStatus::ACTIVE;
-                    }
-                }
-
-                if ( $ret == QrCodeStatus::ACTIVE ) {
-                    if ( !DotW::isValid($item->dotw) ) {
-                        $ret = QrCodeStatus::DISABLED;
-                    }
-                }
-
-                if ( $ret == QrCodeStatus::ACTIVE && $item->max_scan_tot > 0 ) {
-                    //$plugin = SosPlugin::instance();
-                    //$current = $plugin->database->countActiveLogs( $item->code );
-                    //$current = self::plugin()->database->countActiveLogs( $item->code );
-                    $current = self::plugin()->database->countActiveLogs( $item->qrcode_id );
-                    if ( $current !== false ) {
-                        if ( $current > $item->max_scan_tot ) {
-                            $ret = QrCodeStatus::FINISHED;
-                        }
-                    } else {
-                        sosidee_log("database.countActiveLogs($item->code) returned false.");
-                    }
-                }
-
-                if ( $ret == QrCodeStatus::ACTIVE && $item->device_lang != '' ) {
-                    $languages = Request::getLanguages();
-                    //$languages = Mobile::getLanguages();
-                    if ( is_array($languages) ) {
-                        $found = false;
-                        foreach ($languages as $lang) {
-                            if ( $item->device_lang == $lang ) {
-                                $found = true;
-                                break;
-                            }
-                        }
-                        if ( $found == false ) {
-                            $ret = QrCodeStatus::DISABLED;
-                        }
-                    }
-                }
-
-            } else {
-                $ret = QrCodeStatus::DISABLED;
-            }
-        } else {
-            $ret = QrCodeStatus::DISABLED;
-        }
-        return $ret;
-        */
     }
 
-    private static function getRedirUrl( $specific, $general, $error ) {
-        return $specific != '' ? $specific : ($general != '' ? $general : $error);
+    private static function selectUrl($specific, $general, $error ) {
+        return !empty($specific) ? $specific : (!empty($general) ? $general : $error);
     }
 
-    public static function getRedirectUrl( $item, $config ) {
-        $ret = '';
+    public static function getRedirectUrl( $item, $status, $config ) {
+        $error = $config->urlError->value;
+        $ret = $error;
 
-        $status = $item->status;
         if ( $status == QrCodeStatus::ACTIVE ) {
             $ret = $item->url_redirect;
         } else {
-            $error = $config->urlError->value;
             if ( $status == QrCodeStatus::INACTIVE ) {
-                $ret = self::getRedirUrl( $item->url_inactive, $config->urlInactive->value, $error);
-            } else if ( $status == QrCodeStatus::EXPIRED ) {
-                $ret = self::getRedirUrl( $item->url_expired, $config->urlExpired->value, $error);
-            } else if ( $status == QrCodeStatus::FINISHED ) {
-                $ret = self::getRedirUrl( $item->url_finished, $config->urlFinished->value, $error);
-            } else if ( $status == QrCodeStatus::DISABLED ) {
-                $ret = $error;
+                $ret = self::selectUrl( $item->url_inactive, $config->urlInactive->value, $error );
+            } elseif ( $status == QrCodeStatus::EXPIRED ) {
+                $ret = self::selectUrl( $item->url_expired, $config->urlExpired->value, $error );
+            } elseif ( $status == QrCodeStatus::FINISHED ) {
+                $ret = self::selectUrl( $item->url_finished, $config->urlFinished->value, $error );
             }
         }
 
-        return $ret;
+        return self::plugin()->applyFilter( '_qrcode_get_redirect_url', $ret, $item);
     }
 
 
@@ -209,55 +177,131 @@ class QrCode
     {
     }
 
+    private static function getResult( $parameters ) {
+        try {
+            $text = $parameters['text'] ?? '';
+            $size = $parameters['size'] ?? self::IMAGE_DEF_SIZE;
+            $size = max(self::IMAGE_MIN_SIZE, min($size, self::IMAGE_MAX_SIZE));
+            $pad = $parameters['pad'] ?? 0;
+            $pad = max(0, min($pad, self::IMAGE_MAX_PAD));
+            $foreColorHex = $parameters['foreColor'] ?? 0x000000;
+            $backColorHex = $parameters['backColor'] ?? 0xFFFFFF;
+            $level = $parameters['level'] ?? QrCodeLevel::getDefault();
+            $level = QrCodeLevel::getNative($level);
 
-    private static $initialized = false;
-    private static $rootFolder = false;
-    private static $rootUrl = false;
+            // Estrazione dei componenti RGB dai colori esadecimali
+            $fgR = ($foreColorHex >> 16) & 0xFF;
+            $fgG = ($foreColorHex >> 8) & 0xFF;
+            $fgB = $foreColorHex & 0xFF;
 
-    private static function initializeLibrary() {
-        if ( !self::$initialized ) {
-            $folder = self::plugin()->getTempFolder();
-            self::$rootFolder = $folder['path'];
-            self::$rootUrl = $folder['url'];
-            require_once realpath(__DIR__ . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "phpqrcode.php" );
-            self::$initialized = true;
+            $bgR = ($backColorHex >> 16) & 0xFF;
+            $bgG = ($backColorHex >> 8) & 0xFF;
+            $bgB = $backColorHex & 0xFF;
+
+            $builder = new Builder(
+                data: $text,
+                encoding: new Encoding('UTF-8'),
+                errorCorrectionLevel: $level,
+                size: $size,
+                margin: $pad,
+                foregroundColor: new Color($fgR, $fgG, $fgB),
+                backgroundColor: new Color($bgR, $bgG, $bgB),
+                writer: new PngWriter()
+            // Opzioni Label (di default non viene creata la label)
+            // labelText: '',
+            // labelFont: new Font(...), // Richiederebbe il percorso corretto al font
+            // labelAlignment: LabelAlignment::Center,
+            // labelMargin: new Margin(...),
+            // labelTextColor: new Color(...),
+            // Opzioni Logo
+            // logoPath: '',
+            // logoResizeToWidth: null,
+            // logoPunchoutBackground: false
+            );
+
+            return $builder->build();
+
+        } catch (\Throwable $e) {
+            sosidee_log("SRC\QrCode::getResult() - An error occurred while generating the QR Code: " . $e->getMessage());
+            return null;
         }
     }
 
-    public static function getUrl( $name, $text, $size, $pad = 0, $foreColor = 0x000000, $backColor = 0xFFFFFF ) {
-        self::initializeLibrary();
-        $filename = "{$name}.png";
-        $filepath = self::$rootFolder . $filename;
+    public static function saveImg( $name, $parameters ) {
+        if ( empty($name) ) {
+            sosidee_log("SRC\QrCode::saveImg() - Name is empty.");
+            return false;
+        }
+        //self::initializeLibrary();
+        //$filepath = self::$rootFolder . $filename;
+        $filepath = TmpIO::getImgPath(); //
+        if ( empty($filepath) ) {
+            sosidee_log("SRC\QrCode::saveImg() - An error occurred while retrieving the image file path.");
+            return false;
+        }
+        $filepath .= sanitize_file_name($name);
+        if ( !file_exists($filepath) || filesize($filepath) === 0 ) {
+            $result = self::getResult($parameters);
+            if (null === $result) {
+                return false;
+            }
+            try {
+                $result->saveToFile($filepath);
+                return true;
+            } catch (\Throwable $e) {
+                sosidee_log("SRC\QrCode::saveImg() - An error occurred while saving the image file ($filepath): " . $e->getMessage());
+                return false;
+            }
+        } else {
+            return true;
+        }
+    }
 
-        //$text = 'https://redirect.soslink.net/dynamic-qr-code/demo'; // only for the demo
 
-        if ( !file_exists($filepath) ) {
-            LIB\QRimage::$FIXED_SIZE = $size;
-            LIB\QRimage::$PADDING = $pad;
-            LIB\QRcode::png( $text, $filepath, DELTALAB_QR_ECLEVEL_H, $size, 0, false, $backColor, $foreColor );
-            LIB\QRimage::$FIXED_SIZE = 0;
-            LIB\QRimage::$PADDING = 0;
+    public static function getUniqueName( $pars, $prefix = '' ) {
+        if ( !empty($prefix) ) {
+            $prefix = rtrim($prefix, '_') . '_';
+        }
+        ksort($pars);
+        $name = $prefix . sha1(json_encode($pars)); // 40 chars + prefix
+        $filename = rtrim($name, '.') . '.png';
+        return sanitize_file_name($filename);
+    }
+
+    public static function getUrl( $filename ) {
+        $url = TmpIO::getImgUrl();
+        if ( empty($url) ) {
+            sosidee_log("SRC\QrCode::getUrl() - An error occurred while retrieving the image file url.");
+            return '';
+        }
+        return $url . sanitize_file_name($filename);
+    }
+
+    public static function getString($parameters) {
+        $result = self::getResult($parameters);
+
+        if ( null === $result ) {
+            return '';
         }
 
-        return self::$rootUrl . $filename;
+        return base64_encode($result->getString());
     }
 
-    public static function getString( $text, $size, $pad = 0, $foreColor = 0x000000, $backColor = 0xFFFFFF ) {
-        self::initializeLibrary();
-        ob_start();
-        LIB\QRimage::$FIXED_SIZE = $size;
-        LIB\QRimage::$PADDING = $pad;
-        LIB\QRcode::png($text, null, DELTALAB_QR_ECLEVEL_H, $size, 0, false, $backColor, $foreColor);
-        LIB\QRimage::$FIXED_SIZE = 0;
-        LIB\QRimage::$PADDING = 0;
-        $ret = base64_encode( ob_get_contents() );
-        ob_end_clean();
-        return $ret;
-    }
 
     public static function getImageMaxSize() {
-        self::initializeLibrary();
-        return DELTALAB_QR_PNG_MAXIMUM_SIZE;
+        return self::IMAGE_MAX_SIZE;
+    }
+    public static function getImageMinSize() {
+        return self::IMAGE_MIN_SIZE;
+    }
+    public static function getImageDefSize() {
+        return self::IMAGE_DEF_SIZE;
+    }
+    public static function getImageMaxPad() {
+        return self::IMAGE_MAX_PAD;
+    }
+    public static function getImageMinPad() {
+        return self::IMAGE_MIN_PAD;
     }
 
     public static function getColor( $value ) {
@@ -265,12 +309,12 @@ class QrCode
     }
 
     public static function roll( $count ) {
-        $ret = false;
+        $max = $count - 1;
         try {
-            $max = $count - 1;
             $ret = random_int( 0 , $max ); //pseudorandom number ( https://www.php.net/manual/en/function.random-int )
         } catch (\Exception $ex) {
-            sosidee_log("QrCode.roll($count): arose an exception.");
+            $ret = mt_rand( 0 , $max );
+            sosidee_log("QrCode.roll($count): random_int() arose an exception.");
             sosidee_log($ex);
         }
         return $ret;
@@ -302,7 +346,9 @@ class QrCode
             $ret[0] = $caption;
         }
 
-        $results = self::database()->loadQrCodeList( $include_cancelled );
+        $table = self::database()->qrcodes;
+        $orders = [ $table->description->name ];
+        $results = $table->loadList( [], $orders, $include_cancelled );
 
         if ( is_array($results) ) {
             if ( count($results) > 0 ) {

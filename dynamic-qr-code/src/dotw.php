@@ -8,7 +8,7 @@ class DotW
         if ( $value <=0 || $value > 7 ) {
             return true;
         }
-        $day = intval( date("w") );
+        $day = (int) gmdate( 'w', current_time( 'timestamp' ) );
         if ( $value == 7 ) {
             return $day == 0;
         } else {

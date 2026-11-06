@@ -2,6 +2,9 @@
 namespace SOSIDEE_DYNAMIC_QRCODE\SRC;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
+/***
+ * classe per MyFastApp (deprecated)
+ */
 class App
 {
     private static $cookies = null;
@@ -16,7 +19,7 @@ class App
         if ( is_null(self::$cookies) ) {
             $name = 'myfastapp-cli';
             if ( isset($_COOKIE[$name]) ) {
-                $decoded = base64_decode( sanitize_text_field( $_COOKIE[$name] ) );
+                $decoded = base64_decode( sanitize_text_field( wp_unslash($_COOKIE[$name]) ) );
                 self::$cookies = json_decode( $decoded );
             }
         }
@@ -57,7 +60,7 @@ class App
         $ret = false;
         $http = 'HTTP_' . str_replace('-', '_', strtoupper($key));
         if ( array_key_exists($http, $_SERVER) && !empty($_SERVER[$http]) ) {
-            $ret = $_SERVER[$http];
+            $ret = wp_unslash($_SERVER[$http]);
         }
         return $ret;
     }

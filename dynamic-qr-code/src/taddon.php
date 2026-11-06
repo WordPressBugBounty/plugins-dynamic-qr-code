@@ -4,48 +4,43 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
 
 trait TAddon
 {
-    private static $ADDON_KEY = 'sos_dqc_001';
+    public function getProPageUrl() {
+        return $this->pagePro->url;
+    }
+
 
     public function hasFacebook() {
-        return $this->hasAddon(self::$ADDON_KEY);
+        return $this->isPro();
     }
     public function hasInstagram() {
-        return $this->hasAddon(self::$ADDON_KEY);
+        return $this->isPro();
     }
     public function hasLinkedIn() {
-        return $this->hasAddon(self::$ADDON_KEY);
+        return $this->isPro();
     }
     public function hasWhatsApp() {
-        return $this->hasAddon(self::$ADDON_KEY);
+        return $this->isPro();
     }
     public function hasYouTube() {
-        return $this->hasAddon(self::$ADDON_KEY);
+        return $this->isPro();
     }
 
     public function hasGeo() {
-        return $this->hasAddon(self::$ADDON_KEY);
+        return $this->isPro();
     }
     public function hasDuplicate() {
-        return $this->hasAddon(self::$ADDON_KEY);
+        return $this->isPro();
     }
     public function hasStats() {
-        return $this->hasAddon(self::$ADDON_KEY);
+        return $this->isPro();
     }
 
     public function hasSocial() {
-        return $this->hasFacebook()
-            || $this->hasInstagram()
-            || $this->hasLinkedIn()
-            || $this->hasWhatsApp()
-            || $this->hasYouTube()
-            ;
+        return $this->isPro();
     }
 
     public function hasAnyAddon() {
-        return $this->hasSocial()
-            || $this->hasGeo()
-            || $this->hasDuplicate()
-            || $this->hasStats()
-        ;
+        return $this->isPro();
     }
+
 }

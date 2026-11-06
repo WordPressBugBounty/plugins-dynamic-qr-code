@@ -2,14 +2,16 @@
 namespace SOSIDEE_DYNAMIC_QRCODE\SRC\Stats;
 defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' );
 
-use SOSIDEE_DYNAMIC_QRCODE\SOS\Datetime;
-use SOSIDEE_DYNAMIC_QRCODE\SOS\Locale;
+//use SOSIDEE_DYNAMIC_QRCODE\SOS\Datetime;
+//use SOSIDEE_DYNAMIC_QRCODE\SOS\Locale;
 use SOSIDEE_DYNAMIC_QRCODE\SRC\DeviceType;
 use SOSIDEE_DYNAMIC_QRCODE\SRC\OS;
 use SOSIDEE_DYNAMIC_QRCODE\SRC\LogStatus;
 
 class Data
 {
+    use \SOSIDEE_DYNAMIC_QRCODE\SOS\WP\TAsset;
+
     private $logs;
 
     public $hasDT;
@@ -61,10 +63,10 @@ class Data
         if ( $this->count() == 0) {
             return false;
         }
-        $ret = (new \DateTime())->setTimestamp(2145913200);
-        for ( $n=0; $n<count($this->logs); $n++ ) {
-            if ( $ret > $this->logs[$n]->creation ) {
-                $ret = $this->logs[$n]->creation;
+        $ret = $this->logs[0]->creation;
+        foreach ( $this->logs as $log ) {
+            if ( $ret > $log->creation ) {
+                $ret = $log->creation;
             }
         }
         return $ret;
@@ -73,36 +75,33 @@ class Data
         if ( $this->count() == 0) {
             return false;
         }
-        $ret = (new \DateTime())->setTimestamp(0);
-        for ( $n=0; $n<count($this->logs); $n++ ) {
-            if ( $ret < $this->logs[$n]->creation ) {
-                $ret = $this->logs[$n]->creation;
+        $ret = $this->logs[0]->creation;
+        foreach ( $this->logs as $log ) {
+            if ( $ret < $log->creation ) {
+                $ret = $log->creation;
             }
         }
         return $ret;
     }
 
     public function load( $logs ) {
-        global $wp_locale;
         $this->logs = $logs;
 
         if ( $this->used() ) {
 
             if ( $this->dotwMode != GraphType::NONE ) {
-                $i0 = get_option( 'start_of_week' );
-                for ( $i=$i0; $i < $i0 + 7; $i++ ) {
-                    $j = $i % 7;
-                    $index = $wp_locale->get_weekday($j);
-                    $this->dotws[$index] = 0;
+                $days = DateTime::getWeekDays('name');
+                foreach ( $days as $day ) {
+                    $this->dotws[$day] = 0;
                 }
             }
 
             if ( $this->hourMode != GraphType::NONE ) {
-                $format = str_replace([':', 'i', 's'], ['', '', ''], get_option( 'time_format' ));
-                for ( $n=0; $n<24; $n++ ) {
-                    $t = mktime($n, 0, 0, 12, 21, 2012);
-                    $z = (new \DateTime())->setTimestamp($t);
-                    $index = $z->format($format);
+                $format = DateTime::getHourFormat();
+                $midnight = mktime(0, 0, 0, 1, 1, 2012); // any day would be the day
+                for ( $h = 0; $h < 24; $h++ ) {
+                    $current = $midnight + ($h * 3600);
+                    $index = date_i18n($format, $current);
                     $this->hours[$index] = 0;
                 }
             }
@@ -122,14 +121,13 @@ class Data
 
             if ( $this->statusMode != GraphType::NONE ) {
                 $items = LogStatus::getList();
-                foreach ( $items as $key => $value ) {
+                foreach ( $items as $value ) {
                     $this->states[$value] = 0;
                 }
                 $this->states[LogStatus::getDescription(LogStatus::NONE, 'unknown')] = 0;
             }
 
-            for ( $n=0; $n<count($this->logs); $n++ ) {
-                $log = $this->logs[$n];
+            foreach ( $this->logs as $log ) {
                 if ( $this->hasDT ) {
                     $this->addDT( $log->creation );
                 }
@@ -208,22 +206,20 @@ class Data
     public function addDT( $value ) {
         $format = get_option( 'date_format' );
         if ( $this->dtMode == DTMode::HOUR ) {
-            $format .= ' ' . str_replace([':', 'i', 's'], ['', '', ''], get_option( 'time_format' ));
+            $format .= ' ' . DateTime::getHourFormat();
         }
-        $index = Datetime::getString( $value, $format );
+        $index = DateTime::getDatetimeAsString( $value, $format );
         self::get( $this->datetimes[$index] );
     }
 
     public function addDotw( $value ) {
-        global $wp_locale;
-        $index = Datetime::getDotw( $value );
-        $index = $wp_locale->get_weekday($index);
-        self::get( $this->dotws[$index] );
+        $name = DateTime::getDayNameOfTheWeek( $value );
+        self::get( $this->dotws[$name] );
     }
 
     public function addHour( $value ) {
-        $format = str_replace([':', 'i', 's'], ['', '', ''], get_option( 'time_format' ));
-        $index = Datetime::getString( $value, $format );
+        $format = DateTime::getHourFormat();
+        $index = DateTime::getTimeAsString( $value, $format );
         self::get( $this->hours[$index] );
     }
 
@@ -238,12 +234,12 @@ class Data
     }
 
     public function addCountry( $value ) {
-        $index = Locale::getCountryDescription( $value );
+        $index = self::getCountryDescription( $value );
         self::get( $this->countries[$index] );
     }
 
     public function addLang( $value ) {
-        $index = Locale::getLanguageDescription( $value );
+        $index = self::getLanguageDescription( $value );
         self::get( $this->langs[$index] );
     }
 

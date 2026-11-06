@@ -1,1 +1,6 @@
-This is a major upgrade. Please back up your site before proceeding with the update.
+<ul>
+<li>This is a major upgrade and requires PHP 8.2 or higher.</li>
+<li>The PRO add-on and update system has been renewed to provide a more direct integration with Dynamic QR Code.</li>
+<li>Please back up your site before proceeding with the update.</li>
+<li>After the update, reload the admin page to access the new <strong>Go PRO</strong> menu.</li>
+</ul>

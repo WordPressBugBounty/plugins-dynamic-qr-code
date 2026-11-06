@@ -4,6 +4,8 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
 
 class FormField
 {
+    use TDateTime;
+
     public $type;
     public $id;
     public $name;
@@ -11,17 +13,23 @@ class FormField
 
     public $description;
     public $cached;
-    public $data;
+    public $data; // used with type FILE
 
-    public function __construct($type, $id, $value) {
+    public $isUrl;
+    public $isEmail;
+
+    public function __construct( $type, $name, $value ) {
         $this->type = $type;
+        $this->name = $name;
+        $this->id = $name;
         $this->value = $value;
-        $this->id = $id;
-        $this->name = '';
 
         $this->description = '';
         $this->cached = false;
         $this->data = null;
+
+        $this->isUrl = false;
+        $this->isEmail = false;
     }
 
     private function getKeys( $parameters ) {
@@ -45,6 +53,8 @@ class FormField
             ,'label' => null
             ,'options' => null
             ,'accept' => null
+            ,'readonly' => null
+            ,'disabled' => null
         ];
         return array_merge( $defaults, $parameters );
     }
@@ -62,7 +72,7 @@ class FormField
         if ( $this->type == FormFieldType::TEXT ) {
 
             $ret .= FormTag::get( 'input', [
-                    'type' => 'text'
+                     'type' => 'text'
                     ,'id' => $this->id
                     ,'name' => $this->name
                     ,'value' => $this->value
@@ -71,51 +81,67 @@ class FormField
                     ,'onclick' => $keys['onclick']
                     ,'onchange' => $keys['onchange']
                     ,'style' => $keys['style']
-                    ,'class' => $keys['class']
+                    ,'class' => $keys['class'] // regular-text | small-text | large-text
                     ,'onkeydown' => $keys['onkeydown']
+                    ,'readonly' => $keys['readonly'] ?? false
                 ]
             );
 
         } else if ( $this->type == FormFieldType::CHECK ) {
 
-            $html = FormTag::get( 'input', [
-                 'type' => 'checkbox'
+            $disabled = $keys['disabled'] ?? null;
+            $style = $keys['style'];
+            if ( $disabled ) {
+                $style = $this->getStyle( $style, 'cursor:not-allowed;' );
+            }
+
+            $ctrl = FormTag::get( 'input', [
+                'type' => 'checkbox'
                 ,'id' => $this->id
                 ,'name' => $this->name
                 ,'checked' => boolval($this->value) // ? 'checked' : null
+                ,'disabled' => $disabled
+                ,'style' => $style
+                ,'class' => $keys['class'] ?? null
+                ,'onchange' => $keys['onchange'] ?? null
             ]);
 
-            $label = $keys['label'];
-            if ( !is_null($label) ) {
-                $html .= FormTag::get( 'label', [
-                    'for' => $this->id
-                    ,'content' => $label
-                ]);
-            }
+            $label = $keys['label'] ?? '';
+            if ( !empty($label) ) {
+                //$cursor = $disabled !== true ? 'cursor:pointer;' : 'cursor:not-allowed;'; $cursor .
+                $style = $this->getStyle( $keys['style'], 'align-items:center; display:inline-flex;' );
+                $html = $ctrl . '<span>' . $label . '</span>';
 
-            $ret .= $html;
+                $ret .= FormTag::get( 'label', [
+                     'for' => $this->id
+                    ,'html' => $html
+                    ,'style' => $style
+                ]);
+            } else {
+                $ret .= $ctrl;
+            }
 
         } else if ( $this->type == FormFieldType::TEXTAREA ) {
 
             $ret .= FormTag::get( 'textarea', [
-                'id' => $this->id
+                 'id' => $this->id
                 ,'name' => $this->name
                 ,'content' => $this->value
                 ,'maxlength' => $keys['maxlength']
                 ,'cols' => $keys['cols']
                 ,'rows' => $keys['rows']
+                ,'readonly' => $keys['readonly'] ?? false
             ]);
 
         } else if ( $this->type == FormFieldType::RADIO ) {
 
-            $options = $keys['options'];
-            if ( !is_null($options) ) {
-                $counter = 0;
+            $options = $keys['options'] ?? null;
+            if ( is_array($options) ) {
                 foreach ( $options as $_value => $_text ) {
                     if ( $ret != '' ) {
                         $ret .= '<br>';
                     }
-                    $item_id = "{$this->id}_$counter";
+                    $item_id = $this->id . '_' . sosidee_check_id($_value);
                     $ret .= FormTag::get('input',[
                          'type' => 'radio'
                         ,'id' => $item_id
@@ -125,10 +151,9 @@ class FormField
                         ,'onclick' => $keys['onclick']
                     ]);
                     $ret .= FormTag::get( 'label', [
-                        'for' => $item_id
+                         'for' => $item_id
                         ,'content' => $_text
                     ]);
-                    $counter++;
                 }
             }
 
@@ -137,28 +162,24 @@ class FormField
             $html = '';
             $options = $keys['options'];
             if ( !is_null($options) ) {
-                $counter = 0;
                 foreach ( $options as $_value => $_text ) {
+                    $item_id = $this->id . '_' . sosidee_check_id($_value);
                     if ( !is_array($_text) ) {
                         $html .= FormTag::get('option',[
-                             'id' => "{$this->id}_$counter"
-                            ,'name' => "{$this->name}_$counter"
+                             'id' => $item_id
                             ,'value' => $_value
                             ,'selected' => strcasecmp($_value, $this->value) == 0
                             ,'content' => $_text
                         ]);
-                        $counter++;
                     } else {
                         $gr_html = '';
                         foreach ($_text as $gr_value => $gr_text) {
                             $gr_html .= FormTag::get('option',[
-                                 'id' => "{$this->id}_$counter"
-                                ,'name' => "{$this->name}_$counter"
+                                 'id' => $item_id
                                 ,'value' => $gr_value
                                 ,'selected' => strcasecmp($gr_value, $this->value) == 0
                                 ,'content' => $gr_text
                             ]);
-                            $counter++;
                         }
 
                         $html .= FormTag::get('optgroup',[
@@ -192,6 +213,7 @@ class FormField
                     ,'class' => $keys['class']
                     ,'onclick' => $keys['onclick']
                     ,'onchange' => $keys['onchange']
+                    ,'readonly' => $keys['readonly'] ?? false
                 ]
             );
 
@@ -205,6 +227,7 @@ class FormField
                     ,'onclick' => $keys['onclick']
                     ,'onchange' => $keys['onchange']
                     ,'style' => $this->getStyle( $keys['style'], 'cursor:pointer;' )
+                    ,'readonly' => $keys['readonly'] ?? false
                 ]
             );
 
@@ -221,6 +244,7 @@ class FormField
                     ,'onclick' => $keys['onclick']
                     ,'onchange' => $keys['onchange']
                     ,'style' => $this->getStyle( $keys['style'], 'cursor:pointer;' )
+                    ,'readonly' => $keys['readonly'] ?? false
                 ]
             );
 
@@ -237,16 +261,22 @@ class FormField
                     ,'onclick' => $keys['onclick']
                     ,'onchange' => $keys['onchange']
                     ,'style' => $this->getStyle( $keys['style'], 'cursor:pointer;' )
+                    ,'readonly' => $keys['readonly'] ?? false
                 ]
             );
 
         } else if ( $this->type == FormFieldType::HIDDEN ) {
 
+            $value = $this->value;
+            if ( is_array($value) ) {
+                $value = json_encode($value);
+            }
+
             $ret .= FormTag::get( 'input', [
                      'type' => 'hidden'
                     ,'id' => $this->id
                     ,'name' => $this->name
-                    ,'value' => $this->value
+                    ,'value' => $value
                 ]
             );
 
@@ -256,102 +286,73 @@ class FormField
                      'type' => 'file'
                     ,'id' => $this->id
                     ,'name' => $this->name
-                    ,'value' => $this->value
+                    ,'value' => $this->value // anyway it will be ignored by the browse
                     ,'accept' => $keys['accept']
+                    ,'style' => $this->getStyle( $keys['style'], 'cursor:pointer;' )
                 ]
             );
 
         } else if ( $this->type == FormFieldType::COMBOBOX ) {
 
-            $jsFunc = $this->getJsFuncName( $this->id );
-
-            $fld_text = new self( FormFieldType::TEXT, $this->id, $this->value );
+            $fld_text = new self( FormFieldType::TEXT, $this->name, $this->value );
             $fld_text->name = $this->name;
             $ret .= $fld_text->get( $parameters );
 
             $fld_select = new self( FormFieldType::SELECT, "{$this->id}_select", $this->value );
-            $fld_select->name = "{$this->name}_select";
+            $fld_select->name = null; // so it will not be posted
             if ( is_array($parameters) ) {
-                $parameters['onchange'] = "{$jsFunc}(this.value)";
+                $parameters['onchange'] = "jsSosCombobox(this.value, '{$this->id}')";
             } else {
-                $parameters = [ 'onchange' => "{$jsFunc}(this.value)" ];
+                $parameters = [ 'onchange' => "jsSosCombobox(this.value, '{$this->id}')" ];
             }
             $ret .= $fld_select->get( $parameters );
 
-            $js = <<<EOD
-function {$jsFunc}( v ) {
-    let field = self.document.getElementById( '{$this->id}' );
-    if (field) {
-        field.value = v;
-        if (v == '') {
-            field.focus();
-        }
-    } else {
-        alert('A javascript problem occurred in your browser.');
-    }
-}
-EOD;
+        } elseif ( $this->type == FormFieldType::CHECKLIST ) {
 
-            $ret .= FormTag::get( 'script', [
-                 'type' => 'application/javascript'
-                ,'content' => $js
-            ]);
-
-        } else if ( $this->type == FormFieldType::CHECKLIST ) {
-
-            $jsFunc = $this->getJsFuncName( $this->id );
-            $options = $keys['options'];
+            $options = $keys['options'] ?? [];
+            $base_id = $this->id;
+            $name = $this->name . '[]';
             $count = 0;
-            foreach ($options as $value => $text) {
-                $id = "{$this->id}_{$count}";
-                if ( $ret != '') {
+            foreach ( $options as $value => $text ) {
+                $current_id = "{$base_id}_{$count}";
+                if ( $ret != '' ) {
                     $ret .= '<br>';
                 }
-                $ret .= FormTag::get( 'input', [
-                    'type' => 'checkbox'
-                    ,'id' => $id
-                    ,'name' => "{$this->name}_{$count}"
+                $ctrl = FormTag::get( 'input', [
+                     'type' => 'checkbox'
+                    ,'id' => $current_id
+                    ,'name' => $name
                     ,'value' => $value
-                    ,'checked' => in_array($value, $this->value)
-                    ,'onclick' => "{$jsFunc}(this.value,this.checked);"
+                    ,'checked' => is_array($this->value) && in_array($value, $this->value)
+                    ,'style' => $this->getStyle( $keys['style'], 'cursor:pointer;' )
                 ]);
+                $html = $ctrl . '<span>' . $text . '</span>';
                 $ret .= FormTag::get( 'label', [
-                    'for' => $id
-                    ,'content' => $text
+                    'for' => $current_id
+                    ,'html' => $html
+                    ,'style' => $this->getStyle( $keys['style'], 'cursor:pointer; align-items: center; display:inline-flex;' )
                 ]);
                 $count++;
             }
 
-            $ret .= FormTag::get( 'input', [
-                'type' => 'hidden'
-                ,'id' => $this->id
-                ,'name' => $this->name
-                ,'value' => implode(';', $this->value)
-            ] );
+        } else {
 
-            $js = <<<EOD
-function {$jsFunc}( v, m ) {
-    let field = self.document.getElementById( '{$this->id}' );
-    let values = field.value.split( ';' ).filter(element => element);
-    if ( m && !values.includes(v) ) {
-        values.push(v);
-    } else if ( !m && values.includes(v) ) {
-        values = values.filter( function(e, i, a) { return e != v; }, v );
-    }
-    field.value = values.join( ';' );
-}
-EOD;
-            $ret .= FormTag::get( 'script', [
-                'type' => 'application/javascript'
-                ,'content' => $js
+            // FieldType::LABEL
+            $ret .= FormTag::get( 'label', [
+                 'id' => $this->id
+                ,'name' => $this->name
+                ,'html' => $this->value
+                ,'style' => $keys['style'] ?? null
+                ,'class' => $keys['class'] ?? null
             ]);
+
         }
 
         $description = trim( $this->description );
         if ( $description != '' ) {
-            if ( $description == strip_tags($description) ) {
-                $html = FormTag::get( 'span', [ 'content' => $description, 'style' => 'font-style:italic;' ]);
-                $ret .= FormTag::get( 'p', [ 'html' => $html ]);
+            if ( $description == wp_strip_all_tags($description) ) {
+                $html = FormTag::get( 'span', [ 'content' => $description, 'style' => 'font-style:italic;' ] );
+                $ret .= FormTag::get( 'p', [ 'html' => $html ] );
             } else {
                 $ret .= $description;
             }
@@ -360,22 +361,18 @@ EOD;
         return  $ret;
     }
 
+    /**
+     * Outputs the HTML for the form field.
+     *
+     * The output is filtered through wp_kses(), in the sosidee_echo_kses() method, using a custom ruleset
+     * as required by the WordPress.org plugin review team. This acts as a final security blanket
+     * and a manifest of all allowed HTML generated by the plugin's form builder.
+     *
+     * @param array $parameters
+     */
     public function html( $parameters = [] ) {
-        echo self::get( $parameters );
-    }
-
-    private function getDatetimeFromString($value, $format = 'Y-m-d H:i:s') {
-        try {
-            $ret = \DateTime::createFromFormat($format, $value);
-            if ( !($ret instanceof \DateTime) ) {
-                $ret = null;
-            }
-        }
-        catch (\Exception $e) {
-            sosidee_log($e);
-            $ret = null;
-        }
-        return $ret;
+        //echo wp_kses( self::get( $parameters ), sosidee_allowed_html() );
+        sosidee_echo_kses( self::get( $parameters ) );
     }
 
     public function getValueAsDate( $end_of_day = false ) {
@@ -386,32 +383,40 @@ EOD;
         if ( empty($value) ) {
             return null;
         }
-        $value = !$end_of_day ? "$value 00:00:00" : "$value 23:59:59";
-        return $this->getDatetimeFromString( $value );
+        $ret = $this->getDateFromString( $value, 'Y-m-d' );
+        if ( $ret instanceof \DateTimeInterface ) {
+            if ($end_of_day) {
+                return $ret->setTime(23, 59, 59);
+            } else {
+                return $ret;
+            }
+        } else {
+            sosidee_log("FormField::getValueAsDate() - Could not parse date string from field value: " . $value);
+            return null;
+        }
     }
 
     public function setValueFromDate( $value, $format = 'Y-m-d' ) {
-        if ( $value instanceof \DateTime ) {
-            $this->value = $value->format($format);
+        if ( is_null( $value ) ) {
+            $this->value = '';
         } else {
-            $this->value = $value;
-        }
-    }
-
-    private function getTimeFromString($value, $format = 'H:i:s') {
-        try {
-            $ret = \DateTime::createFromFormat($format, $value);
-            if ( !($ret instanceof \DateTime) ) {
-                $ret = null;
+            if ( $value instanceof \DateTimeInterface ) {
+                $this->value = self::getDateAsString($value, $format);
+            } else {
+                if ( is_string($value) ) {
+                    $test = self::getDateFromString(trim($value), $format);
+                    if ( $test instanceof \DateTimeInterface ) {
+                        $this->setValueFromDate( $test, $format );
+                    } else {
+                        sosidee_log("FormField::setValueFromDate() - Unexpected value type: " . gettype($value));
+                        $this->value = '';
+                    }
+                } else {
+                    $this->value = '';
+                }
             }
         }
-        catch (\Exception $e) {
-            sosidee_log($e);
-            $ret = null;
-        }
-        return $ret;
     }
-
 
     public function getValueAsTime() {
         if ( is_null( $this->value ) ) {
@@ -421,23 +426,44 @@ EOD;
         if ( empty($value) ) {
             return null;
         }
-        if ( strlen($value) == 5 ) {
-            $value .= ':00';
+        $ret = $this->getTimeFromString( $value, 'H:i:s' );
+        if ( is_null($ret) ) {
+            $ret = $this->getTimeFromString( $value, 'H:i' );
         }
-        return $this->getTimeFromString( $value );
+        if ( $ret instanceof \DateTimeInterface ) {
+            return $ret;
+        } else {
+            sosidee_log("FormField::getValueAsTime() - Could not parse date string from field value: " . $value);
+            return null;
+        }
     }
 
     public function setValueFromTime( $value, $format = 'H:i' ) {
-        if ( $value instanceof \DateTime ) {
-            $this->value = $value->format($format);
+        if ( is_null( $value ) ) {
+            $this->value = '';
         } else {
-            $this->value = $value;
+            if ( $value instanceof \DateTimeInterface  ) {
+                $this->value = $value->format($format);
+            } else {
+                if ( is_string($value) ) {
+                    $test = self::getTimeFromString(trim($value), $format);
+                    if ( $test instanceof \DateTimeInterface ) {
+                        $this->setValueFromTime( $test, $format );
+                    } else {
+                        sosidee_log("FormField::setValueFromTime() - Unexpected value type: " . gettype($value));
+                        $this->value = '';
+                    }
+                } else {
+                    $this->value = '';
+                }
+            }
         }
     }
 
-
-    private function getJsFuncName($key) {
-        return 'js' . str_replace( ['-', '[', ']'], ['_'], $key );
-    }
-
+    /**
+     * @deprecated form uses self::plugin()->addFormJs();
+    * private function getJsFuncName($key) {
+        * return 'js' . str_replace( ['-', '[', ']'], ['_'], $key );
+    * }
+    */
 }

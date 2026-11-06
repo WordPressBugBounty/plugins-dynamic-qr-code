@@ -14,7 +14,6 @@ table th.bottomed, table td.bottomed {
 table.rounded4 {
     border-collapse: separate;
     border-radius: 4px;
-    -moz-border-radius: 4px;
 }
 th.righted, td.righted {
     text-align: right;
@@ -57,6 +56,14 @@ td.note ul li {
     margin: 0;
 }
 
+ul.ul-circle {
+    list-style-type: circle;
+}
+
+li > ul {
+    margin-top: 0.5em;
+}
+
 .italiced {
     font-style: italic;
 }
@@ -65,6 +72,19 @@ td.note ul li {
 }
 .fs90pc {
     font-size: 90%;
+}
+
+fieldset.panel {
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 1em 1.5em 1.5em;
+    background: #f9f9f9;
+}
+
+fieldset.panel legend {
+    font-weight: bold;
+    padding: 0 0.5em;
+    color: #333;
 }
 
 /* to avoid flickering on mouseover (google charts bug, unfixed...) */

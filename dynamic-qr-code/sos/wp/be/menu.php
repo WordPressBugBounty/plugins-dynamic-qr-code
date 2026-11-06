@@ -5,41 +5,28 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
 
 /**
  * Class for the admin console menu
+ * icon: https://developer.wordpress.org/resource/dashicons/#wordpress
  */
 class Menu
 {
-    use SOS_WP\TProperty {
-        SOS_WP\TProperty::__set as __setProp;
-    }
     use SOS_WP\TTranslation;
     use SOS_WP\TBase;
 
     public $name;
     public $slug;
+    public $icon;
     public $color;
 
     public $pages;
 
     public function __construct($name) {
 
-        $this->_addProperty('icon', '');
-
         $this->name = $name;
-        $this->slug = '';
+        $this->slug = self::plugin()->key;
         $this->color = false;
+        $this->icon = '';
 
         $this->pages = array();
-    }
-
-    public function __set( $name, $value ) {
-        switch ( $name ) {
-            case 'icon':
-                if ( sosidee_str_starts_with($value, '-') === true ) {
-                    $value = 'dashicons' . $value;
-                }
-                break;
-        }
-        return $this->__setProp($name, $value);
     }
 
     /**
@@ -52,29 +39,20 @@ class Menu
      * @return Menu object
      */
     public function add( $page, $title = '', $role = null ) {
-        if (count($this->pages) == 0) {
-            $this->slug = $page->key; //set the menu base slug
-        }
-        if ( $page->title == '' ) {
-            $page->title = $title;
-        }
-        if ( !is_null($role) ) {
-            $page->role = $role;
-        }
+        $page->init( $title, $role );
         $this->pages[] = $page;
 
         return $this;
     }
 
-    /**
-     * Adds a menu item without displaying it
+    /***
+     * Inserts an item in $index position, starting from zero
      */
-    /*
-    public function addHidden( $page, $title = '', $role = null ) {
-        $page->menuType = MenuType::HIDDEN;
-        return $this->add($page, $title, $role);
+    public function insert( $index, $page, $title = '', $role = null) {
+        $page->init( $title, $role );
+        array_splice($this->pages, $index, 0, [$page]);
+        return $this;
     }
-    */
 
     /**
      * Adds an item to the 'Tools' menu
@@ -92,20 +70,70 @@ class Menu
         return $this->add($page, $title, $role);
     }
 
-    public function initialize() {
+    private function getPageIndex($page) {
+        if ( count($this->pages) === 0 ) {
+            return -1;
+        }
+        if ( is_int($page) ) {
+            return $page;
+        } else {
+            $index = -1;
+            foreach ( $this->pages as $i => $p ) {
+                if ( $p->key == $page->key ) {
+                    $index = $i;
+                    break;
+                }
+            }
+            return $index;
+        }
+    }
 
-        if ( self::plugin()->isPro ) {
-            $this->name .= ' PRO';
-            $this->icon = '-awards';
+    public function show( $page ) {
+        $index = $this->getPageIndex($page);
+        if ( $index === -1 ) {
+            return;
         }
 
-        for ( $n=0; $n<count($this->pages); $n++ ) {
-            $page = $this->pages[$n];
-            $file = $page->path;
+        if ( isset($this->pages[$index]) ) {
+            $this->pages[$index]->menuHidden = false;
+        }
 
-            $callback = function() use ($file) {
-                require_once $file;
-            };
+    }
+
+    public function hide( $page ) {
+        $index = $this->getPageIndex($page);
+        if ( $index === -1 ) {
+            return;
+        }
+
+        if ( isset($this->pages[$index]) ) {
+            $this->pages[$index]->menuHidden = true;
+        }
+
+    }
+
+    public function delete( $page ) {
+        $index = $this->getPageIndex($page);
+        if ( $index === -1 ) {
+            return;
+        }
+        if ( isset($this->pages[$index]) ) {
+            unset($this->pages[$index]);
+            $this->pages = array_values($this->pages);
+        }
+    }
+
+    public function initialize() {
+
+        $firstVisibleUrl = false;
+        foreach ( $this->pages as $page ) {
+            if ( !$page->menuHidden ) {
+                $firstVisibleUrl = $page->url;
+                break;
+            }
+        }
+
+        foreach ( $this->pages as $n => $page ) {
 
             $title = $page->title;
             if ( $title == '' ) {
@@ -117,24 +145,63 @@ class Menu
 
             if ( $page->menuHidden ) {
                 $title = '';
+            } else {
+                $title = self::t_($title);
             }
+
+            $callback = function() use ($page) {
+                require_once $page->path;
+            };
 
             if ( $page->menuType == MenuType::TOOLS ) {
                 $page->hook = add_management_page( $this->name, $title, $page->role, $page->key, $callback );
             } else if ( $page->menuType == MenuType::SETTINGS ) {
                 $page->hook = add_options_page( $this->name, $title, $page->role, $page->key, $callback );
             } else {
-                if ( $n == 0 ) {
+                $parent_slug = $this->slug;
+                if ( $page->menuHidden ) {
+                    $parent_slug .= '-hid';
+                }
+                if ( $n === 0 ) {
                     $item = $this->name;
                     if ($this->color !== false) {
                         $item = "<span style=\"color:{$this->color};\">" . $item . "</span>";
                     }
-                    add_menu_page( $this->name, $item, $page->role, $this->slug, $callback , $this->icon);
-                    $page->hook = add_submenu_page( $this->slug, $this->name, $title, $page->role, $this->slug, $callback );
-                } else {
-                    $page->hook = add_submenu_page( $this->slug, $this->name, $title, $page->role, $page->key, $callback );
+                    $icon = $this->icon;
+                    if ( !empty($icon) && sosidee_str_starts_with($icon, '-') === true ) {
+                        $icon = 'dashicons' . $icon;
+                    }
+
+                    $top_callback = function () use ($firstVisibleUrl) {
+                        if (!$firstVisibleUrl) {
+                            echo '<p>This plugin has no page.</p>';
+                        }
+                    };
+
+                    $top_hook = add_menu_page(
+                        $this->name,
+                        $item,
+                        $page->role,
+                        $this->slug,
+                        $top_callback,
+                        $icon
+                    );
+
+                    if ( $firstVisibleUrl ) {
+                        add_action("load-$top_hook", function () use ($firstVisibleUrl) {
+                            wp_safe_redirect($firstVisibleUrl, 302);
+                            exit;
+                        });
+                    }
                 }
+                $page->hook = add_submenu_page( $parent_slug, $this->name, $title, $page->role, $page->key, $callback );
             }
+        }
+    }
+
+    public function finalize() {
+        if ( count($this->pages) > 0 ) {
+            remove_submenu_page($this->slug, $this->slug);
         }
     }
 

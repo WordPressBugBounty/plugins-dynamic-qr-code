@@ -5,7 +5,7 @@ defined( 'SOSIDEE_DYNAMIC_QRCODE' ) or die( 'you were not supposed to be here' )
 class HtmlTag
 {
     private static $containers = [
-        'a', 'b', 'button', 'caption', 'code', 'col', 'colgroup'
+          'a', 'b', 'button', 'caption', 'code', 'col', 'colgroup'
         , 'data', 'div', 'em' //, 'form'
         , 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'
         , 'i'
@@ -27,26 +27,32 @@ class HtmlTag
         if ( func_num_args() > 1 ) {
             $attributes = $args[1];
             foreach ( $attributes as $key => $value ) {
-                if ( $key == 'checked' || $key == 'selected' ) {
+                if ( in_array( $key, ['checked', 'selected', 'readonly', 'disabled'] ) ) {
                     if ( $value === true ) {
                         $ret .= " $key";
                     }
                 } else {
                     if ( !is_null($value) ) {
-                        if ($key == 'html') {
-                            $content .= $value; // sanitized in the previous call of this function
-                        } else if ( $key == 'content' ) {
+                        if ( $key == 'html' ) {
+                            $content .= wp_kses( $value, sosidee_allowed_html() );
+                        } elseif ( $key == 'content' ) {
                             if ( $tag != 'script' ) {
-                                $content .= esc_textarea( $value );
+                                $content .= $tag !== 'textarea' ? esc_html( $value ) : esc_textarea( $value );
                             } else {
                                 $content .= $value; // esc_js(): escaped javascript does NOT work!
                             }
-                        } else if ( $key == 'href' ) {
+                        } elseif ( $key == 'href' ) {
                             $ret .= " $key=\"" .  esc_url( $value ) . '"';
                         } else if ( $key == 'src' ) {
                             if ( !sosidee_str_starts_with($value, 'data:') ) {
                                 $ret .= " $key=\"" .  esc_url( $value ) . '"';
                             } else {
+                                $ret .= " $key=\"" .  esc_attr( $value ) . '"';
+                            }
+                        } elseif ( $key == 'download' ) {
+                            if ( $value === true ) {
+                                $ret .= " $key";
+                            } elseif ( is_string($value) ) {
                                 $ret .= " $key=\"" .  esc_attr( $value ) . '"';
                             }
                         } else {
@@ -65,44 +71,42 @@ class HtmlTag
 
     public static function html() {
         $args = func_get_args();
-        if ( func_num_args() == 1) {
-            echo sosidee_kses( self::get( $args[0] ) );
-        } else if ( func_num_args() == 2) {
-            echo sosidee_kses( self::get( $args[0], $args[1] ) );
+        if ( func_num_args() == 1 ) {
+            sosidee_echo_kses( self::get( $args[0] ) );
+        } else if ( func_num_args() == 2 ) {
+            sosidee_echo_kses( self::get( $args[0], $args[1] ) );
         } else {
             echo "wrong number of arguments in HtmlTag.html()";
         }
     }
 
-    public static function getStyle( $parameter, $default = null ) {
-        if ( !is_null($default) ) {
-            if ( !is_null($parameter) ) {
-                $results = [];
-                $defs = explode(';', $default);
-                for ($n=0; $n<count($defs); $n++) {
-                    $kvs = explode(':', $defs[$n]);
-                    if (count($kvs) == 2) {
-                        $results[$kvs[0]] = rtrim( $kvs[1], ';');
-                    }
-                }
-                $pars = explode(';', $parameter);
-                for ($n=0; $n<count($pars); $n++) {
-                    $kvs = explode(':', $pars[$n]);
-                    if (count($kvs) == 2) {
-                        $results[$kvs[0]] = rtrim( $kvs[1], ';');
-                    }
-                }
-                $ret = "";
-                foreach ($results as $key => $value ) {
-                    $ret .= "$key:$value;";
-                }
-                return $ret;
-            } else {
-                return $default;
+     public static function getStyle( $parameter, $default = null ) {
+        $parseStyles = function ($style) {
+            $styles = [];
+            foreach ( explode(';', $style) as $rule ) {
+                $rule = trim($rule);
+                if ( !$rule ) continue; // skip blank lines
+
+                $pos = strpos($rule, ':');
+                if ( $pos === false ) continue; // skip invalid rules
+
+                $key = strtolower(trim(substr($rule, 0, $pos))); // normalized to lowercase
+                $value = trim(substr($rule, $pos + 1));
+
+                $styles[$key] = rtrim($value, ';'); // remove the last ';' if present
             }
-        } else {
-            return $parameter;
-        }
+            return $styles;
+        };
+
+        // merge rules ($parameter overwrites $default)
+        $mergedStyles = array_merge(
+            $default ? $parseStyles($default) : [],
+            $parameter ? $parseStyles($parameter) : []
+        );
+
+        // build the resulting style string
+        return implode('; ', array_map(fn($k, $v) => "$k: $v", array_keys($mergedStyles), $mergedStyles)) . ';';
     }
+
 
 }

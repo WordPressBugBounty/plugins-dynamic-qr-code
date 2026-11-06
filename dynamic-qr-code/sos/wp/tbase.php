@@ -10,8 +10,9 @@ trait TBase
     }
 
     public static function database() {
-        if ( isset(self::plugin()->database) ) {
-            return self::plugin()->database;
+        $plugin = self::plugin();
+        if ( $plugin->hasDatabase() ) {
+            return $plugin->getDatabase();
         } else {
             sosidee_log("custom database object is null.");
             return null;

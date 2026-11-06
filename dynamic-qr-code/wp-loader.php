@@ -14,13 +14,16 @@ if( !class_exists('SOSIDEE_CLASS_LOADER') ) {
      */
     class SOSIDEE_CLASS_LOADER
     {
-        
+
         public function load( $class ) {
             $items = explode('\\', $class);
-            if ( key_exists($items[0], $this->roots) ) { //check if the class namespace root has been added (non-sosidee's plugins exit here)
+            if ( key_exists($items[0], $this->roots) ) { //check if the root of the class namespace has been added (non-SOSidee plugins exit from here)
                 $items[0] = $this->roots[ $items[0] ];
                 $class_path = implode(DIRECTORY_SEPARATOR, $items);
-                $file_path = plugin_dir_path( __DIR__ ) . strtolower($class_path) . '.php';
+                if ( !in_array('vendor', $items, true) ) {
+                    $class_path = strtolower($class_path);
+                }
+                $file_path = plugin_dir_path(__DIR__) . $class_path . '.php';
                 $file_path = realpath( $file_path );
                 if ( $file_path !== false ) {
                     require_once $file_path;
@@ -39,7 +42,7 @@ if( !class_exists('SOSIDEE_CLASS_LOADER') ) {
         //just the usual way to get a singleton
         private static $instance = null;
         final public static function instance() {
-            if (self::$instance == null) {
+            if ( self::$instance == null ) {
                 self::$instance = new \SOSIDEE_CLASS_LOADER();
 
                 spl_autoload_register( array(self::$instance, 'load') );
@@ -50,6 +53,7 @@ if( !class_exists('SOSIDEE_CLASS_LOADER') ) {
         }
 
         private $roots;
+
         private function __construct() {
             $this->roots = array();
         }
