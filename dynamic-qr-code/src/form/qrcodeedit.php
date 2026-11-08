@@ -512,27 +512,21 @@ class QrCodeEdit extends Base
 
                 // $img_pars = filtro pro !? (sì, ma quali parametri?)
 
-                if ( !SRC\QrCode::saveImg( $name, $parameters ) ) {
-                    return false;
+                $img_url = SRC\QrCode::saveImg( $name, $parameters ) ? esc_url( SRC\QrCode::getUrl( $name ) ) : '';
+                if ( $img_url === '' ) {
+                    $data = SRC\QrCode::getString( $parameters );
+                    if ( $data === '' ) {
+                        return false;
+                    }
+                    $img_url = esc_attr( 'data:image/png;base64,' . $data );
                 }
-
-                $img_url = SRC\QrCode::getUrl( $name );
-
-                $img = DATA\FormTag::get( 'img', [
-                     'src' => $img_url
-                    ,'alt' => 'click to download'
-                    ,'style' => 'margin: 2px;'
-                ] );
 
                 $download = $prefix . '_' . $this->code->value . '_' . base_convert($this->id->value, 10, 36) . '_' . $size . 'x' . $size . '.png';
                 echo '<div style="display: flex; justify-content: center; flex-wrap: wrap; margin-top: 2em;">';
                     echo '<div style="flex-basis: 100%; text-align: center; font-style: italic;">click the image to download it</div>';
-                    DATA\FormTag::html( 'a', [
-                         'href' => $img_url
-                        ,'title' => 'click to download'
-                        ,'download' => $download
-                        ,'html' => $img
-                    ] );
+                    // The generated PNG data URI is escaped above and is allowed only in this preview.
+                    // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                    printf( '<a href="%1$s" title="click to download" download="%2$s"><img src="%1$s" alt="click to download" style="margin: 2px;"></a>', $img_url, esc_attr($download) );
                     echo '<div style="flex-basis: 100%; text-align: center;">size: ' . esc_attr($size) , 'x' . esc_attr($size) . '</div>';
                 echo '</div>';
 

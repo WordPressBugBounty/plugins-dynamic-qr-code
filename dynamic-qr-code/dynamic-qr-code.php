@@ -3,7 +3,7 @@
  * Plugin Name:       Dynamic QR Code
  * Plugin URI:        https://sosplugin.com/dynamic-qr-code/
  * Description:       Allows you to create dynamic QR codes whose destination can be changed without reprinting the QR code.
- * Version:           2.0.0
+ * Version:           2.0.1
  * Requires at least: 5.9
  * Tested up to:      7.1
  * Requires PHP:      8.2

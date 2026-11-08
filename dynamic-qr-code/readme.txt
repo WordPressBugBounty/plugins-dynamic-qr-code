@@ -4,7 +4,7 @@ Contributors: sosidee
 Tags: qr code, qr code generator, dynamic qr code, dynamic qr code generator
 Requires at least: 5.9
 Tested up to: 7.1
-Stable tag: 2.0.0
+Stable tag: 2.0.1
 Requires PHP: 8.2
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
@@ -189,6 +189,11 @@ The PRO add-on and update system has been renewed to provide a more direct integ
 Please back up your site before proceeding with the update.
 
 == Changelog ==
+
+= 2.0.1 =
+* Fixed: Resolved an autoloading issue on Linux servers with case-sensitive file systems.
+* Fixed: QR code images are now displayed in the admin dashboard even when the server cannot write to the image cache.
+* Fixed: Improved QR code image caching to detect and regenerate incomplete PNG files and prevent partial writes.
 
 = 2.0.0 =
 * Added the 'excluded' status to distinguish it from 'disabled' when a QR code is enabled but does not meet selection criteria

@@ -38,6 +38,8 @@ class QrCode
     public const IMAGE_FOREGROUND = '#000000';
     const IMAGE_BACKGROUND = '#ffffff';
 
+    private const PNG_END_CHUNK = "\x00\x00\x00\x00IEND\xAE\x42\x60\x82";
+
     const DATETIME_MODE_FROM = 1;
     const DATETIME_MODE_TO = 2;
 
@@ -228,33 +230,51 @@ class QrCode
     }
 
     public static function saveImg( $name, $parameters ) {
-        if ( empty($name) ) {
+        $name = empty($name) ? '' : sanitize_file_name($name);
+        if ( $name === '' ) {
             sosidee_log("SRC\QrCode::saveImg() - Name is empty.");
             return false;
         }
-        //self::initializeLibrary();
-        //$filepath = self::$rootFolder . $filename;
-        $filepath = TmpIO::getImgPath(); //
-        if ( empty($filepath) ) {
-            sosidee_log("SRC\QrCode::saveImg() - An error occurred while retrieving the image file path.");
-            return false;
-        }
-        $filepath .= sanitize_file_name($name);
-        if ( !file_exists($filepath) || filesize($filepath) === 0 ) {
-            $result = self::getResult($parameters);
-            if (null === $result) {
+
+        try {
+            $folder = TmpIO::getImgPath();
+            if ( empty($folder) ) {
+                sosidee_log("SRC\QrCode::saveImg() - An error occurred while retrieving the image file path.");
                 return false;
             }
-            try {
-                $result->saveToFile($filepath);
+
+            $filepath = $folder . $name;
+            // Older releases could leave a truncated PNG in the cache after a failed write.
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+            if ( is_file($filepath) && @file_get_contents($filepath, false, null, -strlen(self::PNG_END_CHUNK)) === self::PNG_END_CHUNK ) {
                 return true;
-            } catch (\Throwable $e) {
-                sosidee_log("SRC\QrCode::saveImg() - An error occurred while saving the image file ($filepath): " . $e->getMessage());
+            }
+
+            $result = self::getResult($parameters);
+            if ( null === $result ) {
                 return false;
             }
-        } else {
-            return true;
+
+            $contents = $result->getString();
+            $temporary = $folder . '.qr-' . bin2hex(random_bytes(8)) . '.tmp';
+            try {
+                // Publish the local cache file only after the full PNG has been written.
+                // phpcs:ignore WordPress.WP.AlternativeFunctions
+                if ( $contents !== '' && @file_put_contents($temporary, $contents) === strlen($contents) && @rename($temporary, $filepath) ) {
+                    return true;
+                }
+            } finally {
+                if ( is_file($temporary) ) {
+                    wp_delete_file($temporary);
+                }
+            }
+
+            sosidee_log("SRC\QrCode::saveImg() - An error occurred while saving the image file ($filepath).");
+        } catch (\Throwable $e) {
+            sosidee_log("SRC\QrCode::saveImg() - An error occurred while caching the image: " . $e->getMessage());
         }
+
+        return false;
     }
 
 
