@@ -1,3 +1,4 @@
+<p><strong>IMPORTANT:</strong> The following notes apply only to users upgrading from a version prior to 2.0.0.</p>
 <ul>
 <li>This is a major upgrade and requires PHP 8.2 or higher.</li>
 <li>The PRO add-on and update system has been renewed to provide a more direct integration with Dynamic QR Code.</li>

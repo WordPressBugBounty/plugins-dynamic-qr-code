@@ -689,12 +689,31 @@ class QrCodeEdit extends Base
 
     public function onSubmit() {
         $id = $this->getId();
+        $original_id = $this->id->value;
+        $flag_duplicate = 0;
 
         if ( in_array($this->_action, [ 'save', 'generate_cypher', 'cancel_cypher', 'save_cypher', 'duplicate', 'export' ]) ) {
             $save = true;
 
             $plugin = self::plugin();
             $config = $plugin->config;
+
+            if ( $this->_action === 'duplicate' ) {
+                try {
+                    $flag_duplicate = $plugin->applyFilter('_form_qrcode-edit_submit_duplicate', 0, $this );
+                } finally {
+                    $this->id->value = $original_id;
+                }
+                if ( $flag_duplicate === 1 ) {
+                    $id = 0;
+                } else {
+                    $save = false;
+                    $msg_duplicate = $flag_duplicate === -1
+                        ? $this->getProMsg('Please check your license.')
+                        : $this->getProMsg('Duplication is available only in the PRO version');
+                    self::msgWarn($msg_duplicate);
+                }
+            }
 
             $this->description->value = trim( $this->description->value );
             if ( empty($this->description->value) ) {
@@ -710,7 +729,7 @@ class QrCodeEdit extends Base
                     $items = self::database()->qrcodes->loadByKey( $code );
                     if ( is_array($items) ) {
                         for ($n=0; $n<count($items); $n++) {
-                            if ( $items[$n]->code == $code && $items[$n]->qrcode_id != $id ) {
+                            if ( ($flag_duplicate === 1 || $items[$n]->code == $code) && $items[$n]->qrcode_id != $id ) {
                                 $save = false;
                                 $url = $plugin->pageConfig->url;
                                 self::msgErr( "Code is already in use by another QR-Code, whereas it must be unique: you can disable this restriction <a href=\"{$url}\">here</a>." );
@@ -761,22 +780,6 @@ class QrCodeEdit extends Base
                 self::msgErr( 'Foreground and background colors cannot be equal.' );
             }
 
-            //nota: sarebbe meglio non salvare i dati, ma male non fa...
-            if ( $this->_action === 'duplicate' ) {
-                $flag_duplicate = $plugin->applyFilter('_form_qrcode-edit_submit_duplicate', 0, $this );
-                $msg_duplicate = '';
-                if ( $flag_duplicate === 0 ) {
-                    $save = false;
-                    $msg_duplicate = $this->getProMsg('Duplication is available only in the PRO version');
-                } elseif ( $flag_duplicate === -1 ) {
-                    $save = false;
-                    $msg_duplicate = $this->getProMsg('Please check your license.');
-                }
-                if ( !empty( $msg_duplicate ) ) {
-                    self::msgWarn($msg_duplicate);
-                }
-            }
-
             if ( $save ) {
 
                 if ( $this->_action == 'generate_cypher' ) {
@@ -821,6 +824,37 @@ class QrCodeEdit extends Base
                     ,'count_states' => wp_json_encode($this->countStates->value)
                 ];
 
+                if ( $flag_duplicate === 1 && $data['cypher'] !== '' ) {
+                    $qrcodes = self::database()->qrcodes;
+                    $cypher_available = false;
+                    try {
+                        for ( $attempt = 0; $attempt < 5; $attempt++ ) {
+                            $cypher = SRC\QrCode::getNewCypher();
+                            if ( $cypher === $data['cypher'] ) {
+                                continue;
+                            }
+                            $count = $qrcodes->count( [
+                                $qrcodes->cypher->name => $cypher
+                                ,$qrcodes->cancelled->name => false
+                            ] );
+                            if ( $count === false ) {
+                                break;
+                            }
+                            if ( $count === 0 ) {
+                                $data['cypher'] = $cypher;
+                                $cypher_available = true;
+                                break;
+                            }
+                        }
+                    } catch ( \Throwable $ex ) {
+                        $cypher_available = false;
+                    }
+                    if ( !$cypher_available ) {
+                        self::msgErr('A unique enhanced QR-Code could not be generated. No data have been saved.');
+                        return;
+                    }
+                }
+
                 $data = self::plugin()->applyFilter('_form_qrcode-edit_submit_data', $data, $this );
 
                 $result = self::database()->qrcodes->save( $data, $id );
@@ -860,7 +894,14 @@ class QrCodeEdit extends Base
                         $id = intval($result);
                         if ( $id > 0 ) {
                             self::msgOk( 'Data have been added.' );
-                            $this->loadQrCode( $id );
+                            if ( $flag_duplicate === 1 ) {
+                                $this->id->value = $id;
+                                $this->cypher->value = $data['cypher'];
+                            }
+                            $loaded = $this->loadQrCode( $id );
+                            if ( $flag_duplicate === 1 && !$loaded ) {
+                                self::msgErr('The new QR-Code was added, but could not be reloaded.');
+                            }
                         } else {
                             self::msgErr( 'A problem occurred while adding the data.' );
                         }

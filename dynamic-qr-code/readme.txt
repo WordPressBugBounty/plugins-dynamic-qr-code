@@ -4,7 +4,7 @@ Contributors: sosidee
 Tags: qr code, qr code generator, dynamic qr code, dynamic qr code generator
 Requires at least: 5.9
 Tested up to: 7.1
-Stable tag: 2.0.1
+Stable tag: 2.0.2
 Requires PHP: 8.2
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
@@ -189,6 +189,10 @@ The PRO add-on and update system has been renewed to provide a more direct integ
 Please back up your site before proceeding with the update.
 
 == Changelog ==
+
+= 2.0.2 =
+* Fixed: "Save as new" now creates a new QR Code without overwriting the original.
+* Fixed: Duplicating an enhanced QR Code now generates a new cypher identifier.
 
 = 2.0.1 =
 * Fixed: Resolved an autoloading issue on Linux servers with case-sensitive file systems.
